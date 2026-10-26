@@ -22,6 +22,12 @@ import {
   isFirebaseConfigured,
   getFirebaseStatus
 } from './firebase.js';
+import {
+  supabaseSignUp,
+  supabaseSignIn,
+  isSupabaseConfigured,
+  getSupabaseStatus
+} from './supabase.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Initialize SQLite WebAssembly Database in background
@@ -32,14 +38,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Blendify SQLite] SQLite initialization fallback to local storage:', err);
   }
 
-  // Update backend dual-storage indicator
+  // Update backend cloud-storage indicator (SQLite, Supabase, Firebase)
   const authSyncStatusLabel = document.getElementById('authSyncStatusLabel');
   if (authSyncStatusLabel) {
+    const sbStatus = getSupabaseStatus();
     const fbStatus = getFirebaseStatus();
-    if (fbStatus.configured) {
+    if (sbStatus.configured && fbStatus.configured) {
+      authSyncStatusLabel.textContent = `SQLite, Supabase (${sbStatus.projectRef}) & Firebase Synced`;
+    } else if (sbStatus.configured) {
+      authSyncStatusLabel.textContent = `SQLite & Supabase (${sbStatus.projectRef}) Synced`;
+    } else if (fbStatus.configured) {
       authSyncStatusLabel.textContent = `SQLite & Firebase (${fbStatus.projectId}) Synced`;
     } else {
-      authSyncStatusLabel.textContent = 'SQLite WebAssembly Active · Dual-Backend Ready';
+      authSyncStatusLabel.textContent = 'SQLite WebAssembly Active · Cloud-Ready (Supabase & Firebase)';
     }
   }
 
@@ -625,7 +636,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.warn('[SQLite Auth Error]', sqlErr);
     }
 
-    // 4. Try Firebase Auth if live credentials are configured
+    // 4. Try Supabase Auth if configured
+    if (isSupabaseConfigured() && isEmailFormat) {
+      try {
+        const sbAuth = await supabaseSignIn(identifier, password);
+        if (sbAuth.success && sbAuth.user) {
+          saveRoleForEmail(sbAuth.user.email, sbAuth.user.role, sbAuth.user.name);
+          clearAuthErrors('all');
+          processAuthentication({
+            name: sbAuth.user.name,
+            email: sbAuth.user.email,
+            role: sbAuth.user.role,
+            remember: checkRememberMe ? checkRememberMe.checked : true
+          });
+          return;
+        } else if (sbAuth.code === 400 || sbAuth.message?.includes('Invalid login credentials')) {
+          showAuthError('Incorrect Password', 'The credentials you entered do not match our Supabase records.', 'password');
+          return;
+        }
+      } catch (sbErr) {
+        console.warn('[Supabase Auth Error]', sbErr);
+      }
+    }
+
+    // 5. Try Firebase Auth if live credentials are configured
     if (isFirebaseConfigured() && isEmailFormat) {
       try {
         const fbAuth = await firebaseSignIn(identifier, password);
@@ -733,13 +767,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem(STORAGE_KEY_REGISTERED, JSON.stringify(known));
       } catch (e) {}
 
-      // 2. Save user to Firebase Authentication & Firestore if configured
-      let firebaseNotice = '';
+      // 2. Save user to Supabase Authentication & PostgreSQL users table if configured
+      let cloudNotice = '';
+      if (isSupabaseConfigured()) {
+        try {
+          const sbResult = await supabaseSignUp(email, password, name, role);
+          if (sbResult.success) {
+            cloudNotice += ' & Supabase';
+            console.log('[Supabase] User registered successfully:', sbResult.user);
+          }
+        } catch (sbErr) {
+          console.warn('[Supabase] Registration notice:', sbErr);
+        }
+      }
+
+      // 3. Save user to Firebase Authentication & Firestore if configured
       if (isFirebaseConfigured()) {
         try {
           const fbResult = await firebaseSignUp(email, password, name, role);
           if (fbResult.success) {
-            firebaseNotice = ' & Firebase';
+            cloudNotice += ' & Firebase';
             console.log('[Firebase] User registered successfully:', fbResult.user);
           }
         } catch (fbErr) {
@@ -749,7 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (authLoadingOverlay) authLoadingOverlay.style.display = 'none';
 
-      showToast(`Account successfully created in SQLite${firebaseNotice}! Welcome, ${name}!`);
+      showToast(`Account successfully created in SQLite${cloudNotice}! Welcome, ${name}!`);
 
       // Set user session
       const newUser = { name, email, role };

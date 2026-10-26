@@ -29,6 +29,9 @@ export default defineConfig({
       },
       output: {
         manualChunks(id) {
+          if (id.includes('node_modules/@supabase')) {
+            return 'vendor-supabase';
+          }
           if (id.includes('node_modules/firebase')) {
             return 'vendor-firebase';
           }
