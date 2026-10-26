@@ -72,12 +72,14 @@ export function getSupabaseClient() {
  * Configure Supabase credentials at runtime and persist to localStorage
  */
 export function configureSupabase(url, anonKey) {
-  if (url && anonKey) {
-    localStorage.setItem(STORAGE_KEY_URL, url.trim());
-    localStorage.setItem(STORAGE_KEY_ANON_KEY, anonKey.trim());
-  } else {
-    localStorage.removeItem(STORAGE_KEY_URL);
-    localStorage.removeItem(STORAGE_KEY_ANON_KEY);
+  if (typeof localStorage !== 'undefined') {
+    if (url && anonKey) {
+      localStorage.setItem(STORAGE_KEY_URL, url.trim());
+      localStorage.setItem(STORAGE_KEY_ANON_KEY, anonKey.trim());
+    } else {
+      localStorage.removeItem(STORAGE_KEY_URL);
+      localStorage.removeItem(STORAGE_KEY_ANON_KEY);
+    }
   }
   supabaseClient = null; // Reset client singleton
   return getSupabaseClient();
@@ -423,3 +425,59 @@ export async function supabaseUploadFile(fileOrBlob, destinationPath, bucket = '
     };
   }
 }
+
+/**
+ * Diagnostic helper: Tests live Supabase connectivity and measures latency
+ */
+export async function testSupabaseConnection() {
+  const status = getSupabaseStatus();
+  if (!status.configured) {
+    return {
+      connected: false,
+      configured: false,
+      message: 'Supabase credentials are not yet configured in .env (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY). Blendify is operating safely in local SQLite WebAssembly mode.'
+    };
+  }
+
+  const client = getSupabaseClient();
+  const startTime = Date.now();
+
+  try {
+    // Test auth service health
+    const { data, error } = await client.auth.getSession();
+    const latency = Date.now() - startTime;
+
+    if (error) {
+      return {
+        connected: false,
+        configured: true,
+        latencyMs: latency,
+        projectRef: status.projectRef,
+        message: `Connected to endpoint, but authentication returned: ${error.message}`
+      };
+    }
+
+    return {
+      connected: true,
+      configured: true,
+      latencyMs: latency,
+      projectRef: status.projectRef,
+      url: status.url,
+      message: `Connection seamless! Responded in ${latency}ms (Project: ${status.projectRef})`
+    };
+  } catch (err) {
+    return {
+      connected: false,
+      configured: true,
+      latencyMs: Date.now() - startTime,
+      message: `Network connection failed: ${err.message}`
+    };
+  }
+}
+
+// Expose diagnostic tool on window for quick in-browser verification
+if (typeof window !== 'undefined') {
+  window.testSupabaseConnection = testSupabaseConnection;
+  window.getSupabaseStatus = getSupabaseStatus;
+}
+
