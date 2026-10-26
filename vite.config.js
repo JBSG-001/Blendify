@@ -19,12 +19,23 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: true,
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         createCourse: resolve(__dirname, 'create-course.html'),
         login: resolve(__dirname, 'login.html'),
         notFound: resolve(__dirname, '404.html')
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase')) {
+            return 'vendor-firebase';
+          }
+          if (id.includes('node_modules/sql.js')) {
+            return 'vendor-sql';
+          }
+        }
       }
     }
   }
