@@ -6,64 +6,67 @@
  * 3. Personalized AI Learning Agents
  */
 
-import {
-  getDatabase,
-  getMaterials as getSqlMaterials,
-  addMaterial as addSqlMaterial,
-  incrementMaterialDownload as incrementSqlDownload,
-  getJoinedPortals as getSqlJoinedPortals,
-  addJoinedPortal as addSqlJoinedPortal,
-  saveUploadedFile,
-  downloadDatabaseFile
-} from './db.js';
-import { firebaseUploadFile, isFirebaseConfigured } from './firebase.js';
-import { initAILearningAgent } from './ai-agent.js';
-import { initDatabaseExplorer } from './explorer.js';
+document.addEventListener('DOMContentLoaded', () => {
+  // =========================================================================
+  // STATE MANAGEMENT (PERSISTENT ACROSS SESSIONS)
+  // =========================================================================
+  const DEFAULT_CHAT_HISTORY = {
+    alex: [
+      { sender: 'agent', text: "Hello Harsh! I'm Alex, your personalized AI design system mentor. I specialize in visual hierarchy, auto-layout constraints, and token architecture. What design challenge are we tackling today?" }
+    ],
+    kavita: [
+      { sender: 'agent', text: "Hi Harsh! I'm Kavita, your Webflow & CSS code specialist. Whether you need help converting Figma frames to CSS Grid or debugging 100vw horizontal overflow, let's solve it together." }
+    ],
+    socrates: [
+      { sender: 'agent', text: "Greetings Harsh. I am Socrates, your conceptual thinking coach. Tell me: when you shrink a screen from desktop to mobile, why does layout priority change?" }
+    ]
+  };
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-
-document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize Database & API Explorer Modal
-  initDatabaseExplorer();
-
-  // Initialize SQLite WebAssembly Database in background
-  try {
-    await getDatabase();
-    console.log('[Blendify SQLite] Relational database ready in Student Portal.');
-  } catch (err) {
-    console.warn('[Blendify SQLite] SQLite initialization fallback to local storage:', err);
+  function getStoredProgress() {
+    try {
+      const raw = localStorage.getItem('blendify_student_progress');
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return { completedMaterials: 9, isMaterialCompleted: false };
   }
 
-  // =========================================================================
-  // STATE MANAGEMENT
-  // =========================================================================
+  function saveProgress(prog) {
+    try {
+      localStorage.setItem('blendify_student_progress', JSON.stringify(prog));
+    } catch(e) {}
+  }
+
+  function getStoredChatHistory() {
+    try {
+      const raw = localStorage.getItem('blendify_ai_chat_history');
+      if (raw) return JSON.parse(raw);
+    } catch(e) {}
+    return DEFAULT_CHAT_HISTORY;
+  }
+
+  function saveChatHistory(history) {
+    try {
+      localStorage.setItem('blendify_ai_chat_history', JSON.stringify(history));
+    } catch(e) {}
+  }
+
+  const initialProg = getStoredProgress();
+  const initialChat = getStoredChatHistory();
+  const initialStudentView = (function() {
+    try {
+      return localStorage.getItem('blendify_student_active_view') || 'home';
+    } catch(e) { return 'home'; }
+  })();
+
   const state = {
-    activeView: 'home',
+    activeView: initialStudentView,
     activeTag: '#PORTAL-FIGMA-101',
     activePortalName: 'UI/UX Cohort 4 — Webflow Breakpoints Lab',
-    completedMaterials: 9,
+    completedMaterials: initialProg.completedMaterials || 9,
     totalMaterials: 20,
-    isMaterialCompleted: false,
+    isMaterialCompleted: !!initialProg.isMaterialCompleted,
     activePersona: 'alex',
-    chatHistory: {
-      alex: [
-        { sender: 'agent', text: "Hello Harsh! I'm Alex, your personalized AI design system mentor. I specialize in visual hierarchy, auto-layout constraints, and token architecture. What design challenge are we tackling today?" }
-      ],
-      kavita: [
-        { sender: 'agent', text: "Hi Harsh! I'm Kavita, your Webflow & CSS code specialist. Whether you need help converting Figma frames to CSS Grid or debugging 100vw horizontal overflow, let's solve it together." }
-      ],
-      socrates: [
-        { sender: 'agent', text: "Greetings Harsh. I am Socrates, your conceptual thinking coach. Tell me: when you shrink a screen from desktop to mobile, why does layout priority change?" }
-      ]
-    }
+    chatHistory: initialChat
   };
 
   // Toast System
@@ -99,6 +102,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function switchView(viewName) {
     state.activeView = viewName;
+    try {
+      localStorage.setItem('blendify_student_active_view', viewName);
+    } catch (e) {}
 
     // Toggle active state across all nav links (in top header & mobile drawer)
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -196,6 +202,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (btnMarkComplete) {
+    if (state.isMaterialCompleted) {
+      btnMarkComplete.classList.add('completed-state');
+      if (markCompleteText) markCompleteText.textContent = 'Material Studied';
+    }
+    updateMaterialsProgressUI();
+
     btnMarkComplete.addEventListener('click', () => {
       state.isMaterialCompleted = !state.isMaterialCompleted;
       if (state.isMaterialCompleted) {
@@ -209,6 +221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         markCompleteText.textContent = 'Mark Completed';
         showToast('Material status reverted.');
       }
+      saveProgress({ completedMaterials: state.completedMaterials, isMaterialCompleted: state.isMaterialCompleted });
       updateMaterialsProgressUI();
     });
   }
@@ -765,63 +778,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function downloadCommunityMaterial(mat) {
-    showToast(`Downloading "${mat.title}" (${mat.size || 'file'})...`);
+    showToast(`Downloading "${mat.title}" (${mat.size})...`);
     try {
-      const filename = mat.filename || mat.fileName || `${mat.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.${(mat.ext || mat.fileType || 'pdf').toLowerCase()}`;
-      const filePayload = mat.fileData || mat.file_data || mat.content;
+      const mimeTypes = {
+        pdf: 'application/pdf',
+        fig: 'application/octet-stream',
+        zip: 'application/zip',
+        css: 'text/css',
+        js: 'text/javascript'
+      };
+      const ext = mat.ext.toLowerCase().replace('.', '');
+      const mime = mimeTypes[ext] || 'application/octet-stream';
+      const content = mat.content || `${mat.title}\nUploaded by: ${mat.author}\nCategory: ${mat.categoryLabel || mat.category}\n\nBlendify Educational Community Material\nDescription: ${mat.desc}`;
+      const filename = mat.filename || `${mat.title.replace(/[^a-zA-Z0-9-_]/g, '_')}.${ext}`;
 
-      if (filePayload && typeof filePayload === 'string' && filePayload.startsWith('data:')) {
-        // Direct Base64 / Data URL download for real binary files saved in SQLite
-        const a = document.createElement('a');
-        a.href = filePayload;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-        }, 500);
-      } else if (mat.firebaseUrl || mat.firebase_url) {
-        // Direct download from Firebase Storage
-        window.open(mat.firebaseUrl || mat.firebase_url, '_blank');
-      } else {
-        // Text / Generated blob fallback
-        const ext = (mat.ext || mat.fileType || 'pdf').toLowerCase().replace('.', '');
-        const mimeTypes = {
-          pdf: 'application/pdf',
-          fig: 'application/octet-stream',
-          zip: 'application/zip',
-          css: 'text/css',
-          js: 'text/javascript'
-        };
-        const mime = mat.mimeType || mat.mime_type || mimeTypes[ext] || 'application/octet-stream';
-        const content = mat.content || `${mat.title}\nUploaded by: ${mat.author}\nCategory: ${mat.categoryLabel || mat.category}\n\nBlendify Educational Community Material\nDescription: ${mat.desc || ''}`;
-        const blob = new Blob([content], { type: mime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 800);
-      }
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 800);
 
       mat.downloads = (mat.downloads || 0) + 1;
       saveCommunityMaterials(communityMaterials);
       renderCommunityMaterials(activeMaterialSearchQuery, activeMaterialCategory);
       showToast(`Saved "${filename}" directly to your computer!`);
-
-      // Increment SQLite download count
-      if (typeof mat.id === 'number' || !isNaN(Number(mat.id))) {
-        incrementSqlDownload(Number(mat.id)).catch(e => console.warn('[SQLite] download increment error:', e));
-      }
     } catch (e) {
       console.error('Community download error:', e);
     }
   }
-
 
   // Handle download click in grid
   communityUploadsGrid?.addEventListener('click', (e) => {
@@ -1011,7 +1001,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Form submit: Publish Material
-  formUploadMaterial?.addEventListener('submit', async (e) => {
+  formUploadMaterial?.addEventListener('submit', (e) => {
     e.preventDefault();
     const title = uploadTitleInput?.value.trim();
     if (!title) {
@@ -1028,8 +1018,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let size = '2.4 MB';
     let filename = `${title.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
     let content = `Blendify Community Upload: ${title}\nAuthor: ${author}\nCategory: ${category}\n\n${desc}`;
-    let fileData = null;
-    let mimeType = 'application/pdf';
 
     if (selectedUserFile) {
       const parts = selectedUserFile.name.split('.');
@@ -1038,33 +1026,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       size = `${(selectedUserFile.size / (1024 * 1024)).toFixed(1)} MB`;
       filename = selectedUserFile.name;
-      mimeType = selectedUserFile.type || 'application/octet-stream';
-
-      try {
-        fileData = await readFileAsDataURL(selectedUserFile);
-        content = fileData; // store data URL as content for seamless download
-      } catch (fErr) {
-        console.warn('FileReader error:', fErr);
-      }
     } else {
-      if (category === 'ui-ux') { ext = 'FIG'; mimeType = 'application/octet-stream'; }
-      else if (category === 'code') { ext = 'ZIP'; mimeType = 'application/zip'; }
-      else if (category === 'webflow') { ext = 'PDF'; mimeType = 'application/pdf'; }
-    }
-
-    // Firebase Storage upload if configured
-    let firebaseUrl = null;
-    if (selectedUserFile && isFirebaseConfigured()) {
-      try {
-        const dest = `community_materials/${Date.now()}_${filename}`;
-        const fbRes = await firebaseUploadFile(selectedUserFile, dest);
-        if (fbRes.success) {
-          firebaseUrl = fbRes.downloadUrl;
-          console.log('[Blendify Firebase] Material saved to Cloud Storage:', firebaseUrl);
-        }
-      } catch (fbErr) {
-        console.warn('[Blendify Firebase] Storage upload error:', fbErr);
-      }
+      if (category === 'ui-ux') ext = 'FIG';
+      else if (category === 'code') ext = 'ZIP';
+      else if (category === 'webflow') ext = 'PDF';
     }
 
     const categoryLabels = {
@@ -1088,46 +1053,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       authorRole: 'Community Contributor',
       time: 'Just now',
       filename,
-      content,
-      fileData,
-      mimeType,
-      firebaseUrl
+      content
     };
 
     communityMaterials.unshift(newMaterial);
     saveCommunityMaterials(communityMaterials);
     renderCommunityMaterials(activeMaterialSearchQuery, activeMaterialCategory);
     closeUploadModal();
-    showToast(`Published "${title}" to Community Learning Materials (Saved in SQLite${firebaseUrl ? ' & Firebase' : ''})!`);
-
-    // 1. Persist to SQLite learning_materials table
-    addSqlMaterial({
-      title,
-      category: categoryLabels[category] || category,
-      author,
-      fileSize: size,
-      fileType: ext,
-      badgeClass: `badge-${ext.toLowerCase()}`,
-      fileData,
-      fileName: filename,
-      mimeType,
-      firebaseUrl
-    }).catch(e => console.warn('[SQLite] addSqlMaterial error:', e));
-
-    // 2. Persist to SQLite dedicated uploaded_files repository if actual file attached
-    if (fileData) {
-      saveUploadedFile({
-        name: filename,
-        fileData,
-        mimeType,
-        fileSize: size,
-        uploadedBy: author,
-        portalTag: state.activeTag,
-        firebaseUrl
-      }).catch(e => console.warn('[SQLite] saveUploadedFile error:', e));
-    }
+    showToast(`Published "${title}" to Community Learning Materials!`);
   });
-
 
   // Initial render of community materials
   renderCommunityMaterials();
@@ -1433,9 +1367,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       joinedPortals.unshift(existing);
       saveJoinedPortals(joinedPortals);
-
-      // Persist to SQLite classroom_portals table
-      addSqlJoinedPortal(formattedTag, existing.name, existing.instructor).catch(e => console.warn('[SQLite] addPortal error:', e));
     } else if (name) {
       existing.name = name;
       saveJoinedPortals(joinedPortals);
@@ -1548,10 +1479,153 @@ document.addEventListener('DOMContentLoaded', async () => {
   const personaRole = document.getElementById('personaRole');
   const personaBio = document.getElementById('personaBio');
   const aiStatusText = document.getElementById('aiStatusText');
-  // =========================================================================
-  // PILLAR 3: INTERACTIVE AI LEARNING AGENTS (STREAMING, QUIZZES & CODE)
-  // =========================================================================
-  initAILearningAgent(state, showToast);
+  const aiChatHistory = document.getElementById('aiChatHistory');
+  const aiMessageInput = document.getElementById('aiMessageInput');
+  const btnSendAIMessage = document.getElementById('btnSendAIMessage');
+  const btnClearAIChat = document.getElementById('btnClearAIChat');
+
+  const personas = {
+    alex: {
+      name: 'Alex',
+      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>`,
+      role: 'Principal Design System Architect',
+      bio: 'Specialized in visual hierarchy, Figma auto-layout constraints, typography scales, and translating UI tokens into practical web structures.',
+      status: 'Alex is ready to guide your design learning'
+    },
+    kavita: {
+      name: 'Kavita',
+      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
+      role: 'Webflow & Frontend Specialist',
+      bio: 'Focuses on visual CSS architecture, fluid layout models, Client-First conventions, and zero-code responsive development.',
+      status: 'Kavita is ready to troubleshoot your Webflow & CSS questions'
+    },
+    socrates: {
+      name: 'Socrates',
+      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+      role: 'Adaptive Concept & Retention Coach',
+      bio: 'Uses the Socratic method and simple real-world analogies to deepen your comprehension and ensure long-term mastery of web design fundamentals.',
+      status: 'Socrates is ready to test and deepen your understanding'
+    }
+  };
+
+  function switchPersona(personaKey) {
+    state.activePersona = personaKey;
+    const p = personas[personaKey];
+
+    personaChips.forEach(chip => {
+      chip.classList.toggle('active', chip.dataset.persona === personaKey);
+    });
+
+    if (personaAvatar) personaAvatar.innerHTML = p.avatar;
+    if (personaName) personaName.textContent = p.name;
+    if (personaRole) personaRole.textContent = p.role;
+    if (personaBio) personaBio.textContent = p.bio;
+    if (aiStatusText) aiStatusText.textContent = p.status;
+
+    // Render persona's chat history
+    renderChatHistory();
+    showToast(`Switched AI learning agent to ${p.name}!`);
+  }
+
+  personaChips.forEach(chip => {
+    chip.addEventListener('click', () => switchPersona(chip.dataset.persona));
+  });
+
+  function renderChatHistory() {
+    if (!aiChatHistory) return;
+    aiChatHistory.innerHTML = '';
+    const messages = state.chatHistory[state.activePersona] || [];
+
+    messages.forEach(msg => {
+      const row = document.createElement('div');
+      row.className = `ai-msg-row ${msg.sender === 'user' ? 'user' : 'ai-agent'}`;
+      row.innerHTML = `
+        ${msg.sender === 'agent' ? `<div class="agent-avatar-sm">${personas[state.activePersona].avatar}</div>` : ''}
+        <div class="ai-bubble"><p>${msg.text}</p></div>
+      `;
+      aiChatHistory.appendChild(row);
+    });
+
+    aiChatHistory.scrollTop = aiChatHistory.scrollHeight;
+  }
+
+  function generateAIResponse(userText, personaKey) {
+    const lower = userText.toLowerCase();
+
+    if (personaKey === 'alex') {
+      if (lower.includes('hug') || lower.includes('fill') || lower.includes('auto-layout')) {
+        return "In Figma Auto-Layout, think of 'Hug' and 'Fill' like this: **Hug contents** tells a frame to shrink-wrap tightly around its children (great for buttons and tags). **Fill container** tells an element to stretch to 100% of its parent's width (essential for responsive body text and fluid cards). When transitioning to Webflow, 'Fill' behaves like `width: 100%` inside a flex container!";
+      }
+      if (lower.includes('breakpoint') || lower.includes('mobile') || lower.includes('tablet')) {
+        return "When adapting from 1440px to 768px and 375px: 1) Switch multi-column cards (`flex-direction: row`) into single columns (`flex-direction: column`). 2) Tighten side padding from 40px down to 16px. 3) Reduce primary header font sizes by ~25% using fluid clamp or rem units.";
+      }
+      return `Great design question! In modern UI architecture, structuring your visual tokens first makes responsive scaling effortless. In our Module 2 learning material, focus on nesting auto-layout frames before applying individual element styles.`;
+    }
+
+    if (personaKey === 'kavita') {
+      if (lower.includes('rem') || lower.includes('px') || lower.includes('token')) {
+        return "Always prefer `rem` over `px` in Webflow! `1rem` equals the root font size (usually 16px). When users adjust their browser accessibility settings, rem units scale proportionally, whereas hardcoded pixels break readability and accessibility standards.";
+      }
+      if (lower.includes('grid') || lower.includes('flexbox')) {
+        return "Use **CSS Flexbox** for 1-dimensional layouts (navbars, button rows, tag lists). Use **CSS Grid** for 2-dimensional layouts (product grids, dashboard cards, image galleries). In Webflow, Grid offers native gap controls without needing negative margins!";
+      }
+      return `From a Webflow development perspective: keep your class names clean using Client-First naming conventions (e.g. \`card_component\`, \`section_hero\`). This makes sharing projects with teammates in your classroom portal much cleaner!`;
+    }
+
+    if (personaKey === 'socrates') {
+      return `Consider this: If a website is designed only for the desktop user, whose perspective are you excluding? When we examine responsive breakpoints, are we merely resizing boxes, or are we adapting the conversation to someone holding a phone on a crowded train? What information does that mobile user need to see first?`;
+    }
+
+    return "I'm here to support your learning! Ask me about any topic in the Blendify curriculum.";
+  }
+
+  function sendAIMessage(overrideText = null) {
+    const text = overrideText || aiMessageInput.value.trim();
+    if (!text) return;
+
+    // Add user message
+    state.chatHistory[state.activePersona].push({ sender: 'user', text });
+    if (!overrideText && aiMessageInput) aiMessageInput.value = '';
+    renderChatHistory();
+    saveChatHistory(state.chatHistory);
+
+    // Show simulated typing status
+    const currentP = personas[state.activePersona];
+    if (aiStatusText) aiStatusText.textContent = `${currentP.name} is thinking...`;
+
+    setTimeout(() => {
+      const reply = generateAIResponse(text, state.activePersona);
+      state.chatHistory[state.activePersona].push({ sender: 'agent', text: reply });
+      renderChatHistory();
+      saveChatHistory(state.chatHistory);
+      if (aiStatusText) aiStatusText.textContent = currentP.status;
+    }, 600);
+  }
+
+  btnSendAIMessage?.addEventListener('click', () => sendAIMessage());
+  aiMessageInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendAIMessage();
+    }
+  });
+
+  btnClearAIChat?.addEventListener('click', () => {
+    state.chatHistory[state.activePersona] = [
+      { sender: 'agent', text: `Chat cleared. How can I help you with your learning goals today?` }
+    ];
+    renderChatHistory();
+    saveChatHistory(state.chatHistory);
+    showToast('Conversation cleared.');
+  });
+
+  // Prompt chips click
+  document.querySelectorAll('.prompt-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const prompt = chip.dataset.prompt;
+      sendAIMessage(prompt);
+    });
+  });
 
   // =========================================================================
   // GLOBAL SEARCH & SHORTCUTS (CMD + F)
@@ -1647,11 +1721,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = 'login.html';
   }
 
-  document.getElementById('btnExportSqliteDb')?.addEventListener('click', () => {
-    downloadDatabaseFile('blendify.sqlite');
-    showToast('Exporting SQLite Database (blendify.sqlite)...');
-  });
-
   document.getElementById('btnSignOutAccount')?.addEventListener('click', handleSignOutOrSwitch);
   document.getElementById('btnSwitchAccountDropdown')?.addEventListener('click', handleSignOutOrSwitch);
 
@@ -1672,6 +1741,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('sidebarToggle')?.addEventListener('click', openMobileDrawer);
   document.getElementById('mobileDrawerClose')?.addEventListener('click', closeMobileDrawer);
   mobileDrawerOverlay?.addEventListener('click', closeMobileDrawer);
+
+  // Restore student saved view & AI chat on startup
+  if (state.activeView && views[state.activeView]) {
+    switchView(state.activeView);
+  }
+  renderChatHistory();
 
   console.log('Blendify LMS active: Learning Materials, Classroom Workplaces & AI Agent ready.');
 });

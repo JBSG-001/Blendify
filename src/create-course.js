@@ -6,95 +6,238 @@
  * 3. In-Time Activity Tracker (audit log: who, when, exact time)
  * 4. Customizable Quiz & Activity Builder
  * 5. Student Progression Assessment & Printable Record Sheet
+ *
+ * PERSISTENT AUTOSAVE ENGINE:
+ * Automatically saves all created portals, uploaded materials, audit logs,
+ * quiz configurations, questions, view selection, and draft form inputs
+ * to localStorage. Everything is restored seamlessly whenever the website is opened.
  */
 
-import {
-  getDatabase,
-  getMaterials as getSqlMaterials,
-  addMaterial as addSqlMaterial,
-  getQuizzes as getSqlQuizzes,
-  addQuiz as addSqlQuiz,
-  getActivities as getSqlActivities,
-  addActivity as addSqlActivity,
-  saveUploadedFile,
-  getAllUploadedFiles,
-  downloadDatabaseFile
-} from './db.js';
-import { firebaseUploadFile, isFirebaseConfigured } from './firebase.js';
-import { initDatabaseExplorer } from './explorer.js';
-import { getOpenAIApiKey } from './ai-agent.js';
+document.addEventListener('DOMContentLoaded', () => {
+  // =========================================================================
+  // STORAGE KEYS & CONSTANTS
+  // =========================================================================
+  const STORAGE_KEYS = {
+    USER: 'blendify_auth_user',
+    ROLE: 'blendify_role',
+    PORTALS: 'blendify_studio_portals',
+    ACTIVE_PORTAL: 'blendify_studio_active_portal',
+    MATERIALS: 'blendify_studio_materials',
+    ACTIVITIES: 'blendify_studio_activities',
+    METRICS: 'blendify_studio_metrics',
+    QUIZ_DRAFT: 'blendify_studio_quiz_draft',
+    QUIZZES_PUBLISHED: 'blendify_studio_quizzes',
+    ACTIVE_VIEW: 'blendify_studio_active_view',
+    FORM_DRAFTS: 'blendify_studio_draft_inputs',
+    COMMUNITY_MATERIALS: 'blendify_community_materials',
+    JOINED_PORTALS: 'blendify_joined_portals',
+    ALL_PORTALS: 'blendify_all_portals'
+  };
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
+  const DEFAULT_PORTALS = [
+    {
+      tag: '#PORTAL-FIGMA-101',
+      name: 'UI/UX Cohort 4 — Webflow Breakpoints Lab',
+      cohort: 'FIGMA-101',
+      desc: 'Focused on converting 1440px desktop wireframes to fluid flexbox and auto-layout containers.',
+      learners: 18,
+      materials: 6,
+      quizzes: 2,
+      url: 'https://blendify.edu/portal/join?tag=PORTAL-FIGMA-101'
+    },
+    {
+      tag: '#PORTAL-WEBFLOW-88',
+      name: 'Webflow CMS & Animations Workshop',
+      cohort: 'WEBFLOW-88',
+      desc: 'Structuring dynamic CMS collections, client-first classes, and scroll-driven micro-interactions.',
+      learners: 24,
+      materials: 8,
+      quizzes: 1,
+      url: 'https://blendify.edu/portal/join?tag=PORTAL-WEBFLOW-88'
+    },
+    {
+      tag: '#PORTAL-TOKENS-22',
+      name: 'Enterprise Design Tokens & Multi-Brand UI',
+      cohort: 'TOKENS-22',
+      desc: 'Figma variables, 8pt spacing rhythm, and fluid rem conversion formulas for production teams.',
+      learners: 14,
+      materials: 4,
+      quizzes: 1,
+      url: 'https://blendify.edu/portal/join?tag=PORTAL-TOKENS-22'
+    }
+  ];
 
+  const DEFAULT_MATERIALS = [
+    {
+      id: 'mat-figma-01',
+      portalTag: '#PORTAL-FIGMA-101',
+      title: 'Figma Responsive Wireframe Starter Kit v2.4',
+      category: 'Figma Kit',
+      size: '34.2 MB',
+      date: 'Sept 7, 2026',
+      status: 'Open Access',
+      allowDownload: true
+    },
+    {
+      id: 'mat-break-02',
+      portalTag: '#PORTAL-FIGMA-101',
+      title: 'Fluid Breakpoints & Rem Units Cheat Sheet',
+      category: 'Study Guide',
+      size: '4.8 MB',
+      date: 'Sept 8, 2026',
+      status: 'Open Access',
+      allowDownload: true
+    },
+    {
+      id: 'mat-webflow-03',
+      portalTag: '#PORTAL-FIGMA-101',
+      title: 'Webflow Client-First Component Library',
+      category: 'Webflow Project',
+      size: 'Live URL',
+      date: 'Sept 8, 2026',
+      status: 'Open Access',
+      allowDownload: true
+    }
+  ];
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize Database & API Explorer Modal
-  initDatabaseExplorer();
+  const DEFAULT_ACTIVITIES = [
+    {
+      id: 'act-1',
+      studentName: 'Aria Montgomery',
+      studentId: '#STU-9021',
+      initials: 'AM',
+      colorClass: '',
+      materialName: 'Module 2.2: Auto-Layout Fluid Constraints',
+      portalTag: '#PORTAL-FIGMA-101',
+      action: 'Viewed Material',
+      actionClass: 'open',
+      timeStr: '10:44:18 PM',
+      dateStr: 'Sept 8, 2026',
+      statusPill: 'Active Now'
+    },
+    {
+      id: 'act-2',
+      studentName: 'Rahim Chowdhury',
+      studentId: '#STU-4812',
+      initials: 'RC',
+      colorClass: 'rc-avatar',
+      materialName: 'Figma Responsive Wireframe Starter Kit v2.4',
+      portalTag: '#PORTAL-FIGMA-101',
+      action: 'Downloaded (.fig)',
+      actionClass: 'download',
+      timeStr: '10:38:05 PM',
+      dateStr: 'Sept 8, 2026',
+      statusPill: '6m ago'
+    },
+    {
+      id: 'act-3',
+      studentName: 'Harsh Vardhan',
+      studentId: '#STU-1004',
+      initials: 'HV',
+      colorClass: '',
+      materialName: 'Fluid Breakpoints & Rem Units Cheat Sheet',
+      portalTag: '#PORTAL-FIGMA-101',
+      action: 'Opened PDF',
+      actionClass: 'open',
+      timeStr: '10:15:22 PM',
+      dateStr: 'Sept 8, 2026',
+      statusPill: '29m ago'
+    },
+    {
+      id: 'act-4',
+      studentName: 'Sarah Kim',
+      studentId: '#STU-6523',
+      initials: 'SK',
+      colorClass: 'sk-avatar',
+      materialName: 'Webflow Client-First Component Library',
+      portalTag: '#PORTAL-FIGMA-101',
+      action: 'Viewed Cloneable',
+      actionClass: 'open',
+      timeStr: '09:42:50 PM',
+      dateStr: 'Sept 8, 2026',
+      statusPill: '1h ago'
+    }
+  ];
 
-  // Initialize SQLite WebAssembly Database in background
-  try {
-    await getDatabase();
-    console.log('[Blendify SQLite] Relational database ready in Teacher Studio.');
-  } catch (err) {
-    console.warn('[Blendify SQLite] SQLite initialization fallback to local storage:', err);
+  const DEFAULT_METRICS = {
+    activeToday: 18,
+    openings: 42,
+    downloads: 14
+  };
+
+  const DEFAULT_QUIZ = {
+    title: 'Module 2: Auto Layout Constraints & Breakpoints Assessment',
+    type: 'quiz',
+    passScore: 80,
+    timeLimit: 15,
+    attempts: 3,
+    questions: [
+      {
+        prompt: 'In Figma Auto-Layout, what constraint behavior causes a frame to expand to 100% of its parent container width?',
+        points: 10,
+        options: [
+          'Hug contents',
+          'Fill container (width: 100%)',
+          'Fixed width: 375px'
+        ],
+        correctIndex: 1,
+        hint: 'Fill container is the equivalent of width: 100% in CSS flexbox.'
+      },
+      {
+        prompt: 'Why should Webflow web designers use rem units over hardcoded pixels for typography?',
+        points: 10,
+        options: [
+          'Rem units scale proportionately with the user\'s browser accessibility settings',
+          'Pixels load faster in CSS rendering engines',
+          'Rem units prevent font loading on mobile'
+        ],
+        correctIndex: 0,
+        hint: 'Rem units honor user-defined browser font sizes, ensuring accessible digital experiences.'
+      }
+    ]
+  };
+
+  // Helper: safe JSON parsing with fallback
+  function safeJSONParse(key, fallback) {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored !== null && stored !== undefined) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.warn(`[Blendify] Error reading ${key} from localStorage:`, e);
+    }
+    return fallback;
+  }
+
+  // Helper: escape HTML strings
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   // =========================================================================
-  // APPLICATION STATE
+  // APPLICATION STATE INITIALIZATION (RESTORED FROM STORAGE)
   // =========================================================================
   const state = {
-    activeView: 'workspaces',
-    activePortal: {
+    activeView: safeJSONParse(STORAGE_KEYS.ACTIVE_VIEW, 'workspaces'),
+    activePortal: safeJSONParse(STORAGE_KEYS.ACTIVE_PORTAL, {
       tag: '#PORTAL-FIGMA-101',
       name: 'UI/UX Cohort 4 — Webflow Breakpoints Lab',
       cohort: 'FIGMA-101',
       shareUrl: 'https://blendify.edu/portal/join?tag=PORTAL-FIGMA-101'
-    },
-    portals: [
-      {
-        tag: '#PORTAL-FIGMA-101',
-        name: 'UI/UX Cohort 4 — Webflow Breakpoints Lab',
-        cohort: 'FIGMA-101',
-        desc: 'Focused on converting 1440px desktop wireframes to fluid flexbox and auto-layout containers.',
-        learners: 18,
-        materials: 6,
-        quizzes: 2,
-        url: 'https://blendify.edu/portal/join?tag=PORTAL-FIGMA-101'
-      },
-      {
-        tag: '#PORTAL-WEBFLOW-88',
-        name: 'Webflow CMS & Animations Workshop',
-        cohort: 'WEBFLOW-88',
-        desc: 'Structuring dynamic CMS collections, client-first classes, and scroll-driven micro-interactions.',
-        learners: 24,
-        materials: 8,
-        quizzes: 1,
-        url: 'https://blendify.edu/portal/join?tag=PORTAL-WEBFLOW-88'
-      },
-      {
-        tag: '#PORTAL-TOKENS-22',
-        name: 'Enterprise Design Tokens & Multi-Brand UI',
-        cohort: 'TOKENS-22',
-        desc: 'Figma variables, 8pt spacing rhythm, and fluid rem conversion formulas for production teams.',
-        learners: 14,
-        materials: 4,
-        quizzes: 1,
-        url: 'https://blendify.edu/portal/join?tag=PORTAL-TOKENS-22'
-      }
-    ],
+    }),
+    portals: safeJSONParse(STORAGE_KEYS.PORTALS, DEFAULT_PORTALS),
+    materials: safeJSONParse(STORAGE_KEYS.MATERIALS, DEFAULT_MATERIALS),
+    activities: safeJSONParse(STORAGE_KEYS.ACTIVITIES, DEFAULT_ACTIVITIES),
+    metrics: safeJSONParse(STORAGE_KEYS.METRICS, DEFAULT_METRICS),
+    quizzes: safeJSONParse(STORAGE_KEYS.QUIZZES_PUBLISHED, []),
     selectedUploadFile: null,
-    metrics: {
-      activeToday: 18,
-      openings: 42,
-      downloads: 14
-    },
     students: [
       { name: 'Aria Montgomery', id: '#STU-9021', initials: 'AM', colorClass: '' },
       { name: 'Rahim Chowdhury', id: '#STU-4812', initials: 'RC', colorClass: 'rc-avatar' },
@@ -106,7 +249,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     questionCount: 2
   };
 
-  // Toast Notifications
+  // Synchronize state back into storage so first visits permanently record defaults
+  function persistAllState() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.PORTALS, JSON.stringify(state.portals));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PORTAL, JSON.stringify(state.activePortal));
+      localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(state.materials));
+      localStorage.setItem(STORAGE_KEYS.ACTIVITIES, JSON.stringify(state.activities));
+      localStorage.setItem(STORAGE_KEYS.METRICS, JSON.stringify(state.metrics));
+      localStorage.setItem(STORAGE_KEYS.QUIZZES_PUBLISHED, JSON.stringify(state.quizzes));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_VIEW, JSON.stringify(state.activeView));
+    } catch (e) {
+      console.warn('[Blendify] Storage write warning:', e);
+    }
+  }
+  persistAllState();
+
+  // =========================================================================
+  // TOAST NOTIFICATIONS & AUTOSAVE INDICATOR
+  // =========================================================================
   const CHECK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const toastContainer = document.getElementById('toastContainer');
   function showToast(message, icon = CHECK_SVG) {
@@ -121,6 +282,44 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTimeout(() => toast.remove(), 300);
     }, 3400);
   }
+
+  const autoSaveIndicator = document.getElementById('autoSaveIndicator');
+  let autoSaveDebounceTimer = null;
+
+  function updateAutoSaveIndicator(status = 'saved', customText = '') {
+    if (!autoSaveIndicator) return;
+    const textEl = autoSaveIndicator.querySelector('.save-status-text');
+
+    if (status === 'saving') {
+      autoSaveIndicator.classList.add('saving');
+      if (textEl) textEl.textContent = 'Saving progress...';
+    } else {
+      autoSaveIndicator.classList.remove('saving');
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (textEl) {
+        textEl.textContent = customText || `All progress saved (${timeStr})`;
+      }
+    }
+  }
+
+  function triggerLiveAutoSave() {
+    updateAutoSaveIndicator('saving');
+    clearTimeout(autoSaveDebounceTimer);
+    autoSaveDebounceTimer = setTimeout(() => {
+      persistAllState();
+      saveFormDrafts();
+      saveQuizDraft();
+      updateAutoSaveIndicator('saved');
+    }, 350);
+  }
+
+  // Ensure all changes are flushed if user closes or reloads page
+  window.addEventListener('beforeunload', () => {
+    persistAllState();
+    saveFormDrafts();
+    saveQuizDraft();
+  });
 
   // =========================================================================
   // VIEW NAVIGATION (5 MODULES)
@@ -137,6 +336,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function switchView(viewName) {
     if (!panels[viewName]) return;
     state.activeView = viewName;
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_VIEW, JSON.stringify(viewName));
+    } catch (e) {}
 
     // Update sidebar nav buttons
     navLinks.forEach(link => {
@@ -175,10 +377,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const printPortalTag = document.getElementById('printPortalTag');
 
   function setActivePortal(tag, name, cohort) {
+    const found = state.portals.find(p => p.tag === tag);
     state.activePortal.tag = tag;
-    state.activePortal.name = name || tag;
-    state.activePortal.cohort = cohort || 'COHORT-2026';
+    state.activePortal.name = name || (found ? found.name : tag);
+    state.activePortal.cohort = cohort || (found ? found.cohort : 'COHORT-2026');
     state.activePortal.shareUrl = `https://blendify.edu/portal/join?tag=${tag.replace('#', '')}`;
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PORTAL, JSON.stringify(state.activePortal));
+    } catch (e) {}
 
     if (currentUploadPortalName) currentUploadPortalName.textContent = tag;
     if (currentQuizPortalName) currentQuizPortalName.textContent = tag;
@@ -204,6 +411,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
     });
+
+    // Re-render materials table filtered to this active portal
+    renderMaterialsTable();
   }
 
   // Header dropdown switcher
@@ -212,6 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const found = state.portals.find(p => p.tag === selectedTag);
     setActivePortal(selectedTag, found ? found.name : selectedTag);
     showToast(`Active Classroom Portal switched to ${selectedTag}`);
+    triggerLiveAutoSave();
   });
 
   // =========================================================================
@@ -237,12 +448,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     let rawCohort = newPortalCohortInput?.value.trim().toUpperCase();
     if (rawCohort) {
       rawCohort = rawCohort.replace(/[^A-Z0-9-]/g, '');
-      liveGeneratedTag.textContent = `#PORTAL-${rawCohort}`;
-      liveGeneratedUrl.textContent = `https://blendify.edu/portal/join?tag=PORTAL-${rawCohort}`;
+      if (liveGeneratedTag) liveGeneratedTag.textContent = `#PORTAL-${rawCohort}`;
+      if (liveGeneratedUrl) liveGeneratedUrl.textContent = `https://blendify.edu/portal/join?tag=PORTAL-${rawCohort}`;
     }
   }
 
-  newPortalCohortInput?.addEventListener('input', updateLiveTagDisplay);
+  newPortalCohortInput?.addEventListener('input', () => {
+    updateLiveTagDisplay();
+    triggerLiveAutoSave();
+  });
+
+  newPortalTitleInput?.addEventListener('input', () => {
+    triggerLiveAutoSave();
+  });
 
   btnRefreshGeneratedTag?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -253,10 +471,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       newPortalCohortInput.value = newTag.replace('#PORTAL-', '');
     }
     showToast(`New portal tag generated: ${newTag}`);
+    triggerLiveAutoSave();
   });
 
-  // Copy portal link to clipboard helper
+  // Clipboard copy helper
   function attachCopyLinkEvents(container) {
+    if (!container) return;
     container.querySelectorAll('.btn-copy-portal-link').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -266,7 +486,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(url);
           } else {
-            // Fallback for non-secure contexts
             const textarea = document.createElement('textarea');
             textarea.value = url;
             document.body.appendChild(textarea);
@@ -283,6 +502,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function attachSelectPortalEvents(container) {
+    if (!container) return;
     container.querySelectorAll('.btn-select-portal').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -290,14 +510,91 @@ document.addEventListener('DOMContentLoaded', async () => {
         const name = btn.getAttribute('data-name');
         setActivePortal(tag, name);
         showToast(`Selected portal: ${tag}`);
+        triggerLiveAutoSave();
       });
     });
   }
 
-  // Attach initial listeners in portals grid
-  if (portalsListGrid) {
+  // Render portals directory cards from state
+  function renderPortalsGrid() {
+    if (!portalsListGrid) return;
+    portalsListGrid.innerHTML = '';
+
+    state.portals.forEach(portal => {
+      const isActive = portal.tag === state.activePortal.tag;
+      const portalCard = document.createElement('div');
+      portalCard.className = `portal-card ${isActive ? 'active' : ''}`;
+      portalCard.innerHTML = `
+        <div class="portal-card-top">
+          <span class="portal-tag-pill">${escapeHtml(portal.tag)}</span>
+          <span class="status-live-tag"><span class="green-dot"></span> Active</span>
+        </div>
+        <h4>${escapeHtml(portal.name)}</h4>
+        <p>${escapeHtml(portal.desc)}</p>
+        <div class="portal-card-stats">
+          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg> ${portal.learners || 1} Learners</span>
+          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> ${portal.materials || 0} Materials</span>
+          <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><line x1="9" y1="15" x2="15" y2="15"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg> ${portal.quizzes || 0} Quizzes</span>
+        </div>
+        <div class="portal-card-actions">
+          <button class="${isActive ? 'btn-primary-sm' : 'btn-secondary-sm'} btn-select-portal" data-tag="${escapeHtml(portal.tag)}" data-name="${escapeHtml(portal.name)}">${isActive ? 'Active Portal' : 'Manage Portal'}</button>
+          <button class="btn-ghost-sm btn-copy-portal-link" data-url="${escapeHtml(portal.url)}">Copy Link</button>
+        </div>
+      `;
+      portalsListGrid.appendChild(portalCard);
+    });
+
     attachCopyLinkEvents(portalsListGrid);
     attachSelectPortalEvents(portalsListGrid);
+
+    // Update header dropdown
+    if (headerPortalSelect) {
+      headerPortalSelect.innerHTML = '';
+      state.portals.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.tag;
+        opt.textContent = `${p.tag} (${p.name})`;
+        if (p.tag === state.activePortal.tag) opt.selected = true;
+        headerPortalSelect.appendChild(opt);
+      });
+    }
+
+    if (portalsCount) {
+      portalsCount.textContent = `${state.portals.length} Active Portals`;
+    }
+  }
+
+  // Cross-register portal in student storage so learners can join by tag
+  function syncPortalToStudentStorage(portal) {
+    try {
+      const rawJoined = localStorage.getItem(STORAGE_KEYS.JOINED_PORTALS);
+      const list = rawJoined ? JSON.parse(rawJoined) : [];
+      const exists = list.some(p => p.tag === portal.tag);
+      if (!exists) {
+        list.unshift({
+          tag: portal.tag,
+          name: portal.name,
+          instructor: 'Harsh Vardhan',
+          topic: portal.cohort || 'Design & Code',
+          activeMembers: 1,
+          unreadNotice: true,
+          initials: 'PR',
+          colorClass: 'purple-box',
+          shareUrl: portal.url
+        });
+        localStorage.setItem(STORAGE_KEYS.JOINED_PORTALS, JSON.stringify(list));
+      }
+
+      // Also register into global portal directory
+      const rawAll = localStorage.getItem(STORAGE_KEYS.ALL_PORTALS);
+      const allPortals = rawAll ? JSON.parse(rawAll) : [];
+      if (!allPortals.some(p => p.tag === portal.tag)) {
+        allPortals.unshift(portal);
+        localStorage.setItem(STORAGE_KEYS.ALL_PORTALS, JSON.stringify(allPortals));
+      }
+    } catch (e) {
+      console.warn('[Blendify] Sync portal error:', e);
+    }
   }
 
   // Handle portal creation form submission
@@ -313,7 +610,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const shareUrl = liveGeneratedUrl?.textContent.trim() || `https://blendify.edu/portal/join?tag=${tag.replace('#', '')}`;
     const cohortCode = newPortalCohortInput?.value.trim().toUpperCase() || 'COHORT-2026';
 
-    // Add to portals state
     const newPortal = {
       tag,
       name: title,
@@ -324,57 +620,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       quizzes: 0,
       url: shareUrl
     };
+
+    // Add to state and save
     state.portals.unshift(newPortal);
+    syncPortalToStudentStorage(newPortal);
+    persistAllState();
+    renderPortalsGrid();
 
-    // Create DOM card in grid
-    const portalCard = document.createElement('div');
-    portalCard.className = 'portal-card active';
-    portalCard.innerHTML = `
-      <div class="portal-card-top">
-        <span class="portal-tag-pill">${tag}</span>
-        <span class="status-live-tag"><span class="green-dot"></span> Active</span>
-      </div>
-      <h4>${title}</h4>
-      <p>${newPortal.desc}</p>
-      <div class="portal-card-stats">
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg> 1 Learner</span>
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg> 0 Materials</span>
-        <span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><line x1="9" y1="15" x2="15" y2="15"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg> 0 Quizzes</span>
-      </div>
-      <div class="portal-card-actions">
-        <button class="btn-primary-sm btn-select-portal" data-tag="${tag}" data-name="${title}">Active Portal</button>
-        <button class="btn-ghost-sm btn-copy-portal-link" data-url="${shareUrl}">Copy Link</button>
-      </div>
-    `;
-
-    portalsListGrid?.prepend(portalCard);
-    attachCopyLinkEvents(portalCard);
-    attachSelectPortalEvents(portalCard);
-
-    // Add to header dropdown
-    if (headerPortalSelect) {
-      const opt = document.createElement('option');
-      opt.value = tag;
-      opt.textContent = `${tag} (${title})`;
-      headerPortalSelect.prepend(opt);
-    }
-
-    // Update active portal count badge
-    if (portalsCount) {
-      portalsCount.textContent = `${state.portals.length} Active Portals`;
-    }
-
-    // Set as currently active portal
+    // Set as active portal
     setActivePortal(tag, title, cohortCode);
 
-    // Reset inputs
+    // Reset inputs & draft
     if (newPortalTitleInput) newPortalTitleInput.value = '';
     if (newPortalCohortInput) newPortalCohortInput.value = '';
     const freshTag = generateRandomTagCode();
     if (liveGeneratedTag) liveGeneratedTag.textContent = freshTag;
     if (liveGeneratedUrl) liveGeneratedUrl.textContent = `https://blendify.edu/portal/join?tag=${freshTag.replace('#', '')}`;
+    saveFormDrafts();
 
-    showToast(`Classroom Portal ${tag} launched successfully!`);
+    showToast(`Classroom Portal ${tag} launched & saved!`);
 
     // Add activity tracker log entry
     recordActivityEvent({
@@ -385,6 +649,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       actionClass: 'open',
       statusPill: 'Active Now'
     });
+
+    triggerLiveAutoSave();
   });
 
   // =========================================================================
@@ -400,7 +666,69 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnPublishMaterialToPortal = document.getElementById('btnPublishMaterialToPortal');
   const portalMaterialsTableBody = document.getElementById('portalMaterialsTableBody');
 
-  // File drag & drop handling
+  function getCategorySvg(category = '') {
+    if (category.includes('Figma')) {
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 2a4 4 0 0 0-4 4v4h4a4 4 0 0 0 0-8z"></path><path d="M12 10H8a4 4 0 0 0 0 8h4v-8z"></path><path d="M12 10h4a4 4 0 0 0 0-8h-4v8z"></path><path d="M12 18H8a4 4 0 0 0 4 4 4 4 0 0 0 4-4v-4h-4v4z"></path></svg>`;
+    }
+    if (category.includes('Webflow')) {
+      return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`;
+    }
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`;
+  }
+
+  function renderMaterialsTable() {
+    if (!portalMaterialsTableBody) return;
+    portalMaterialsTableBody.innerHTML = '';
+
+    const currentTag = state.activePortal.tag;
+    // Show materials for active portal (or any unassigned default materials if viewing default)
+    const portalMaterials = state.materials.filter(m => !m.portalTag || m.portalTag === currentTag);
+
+    if (portalMaterials.length === 0) {
+      portalMaterialsTableBody.innerHTML = `
+        <tr class="empty-state-row">
+          <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
+            No materials uploaded to ${escapeHtml(currentTag)} yet. Upload your first material using the form above!
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    portalMaterials.forEach(mat => {
+      const row = document.createElement('tr');
+      row.setAttribute('data-id', mat.id);
+      row.innerHTML = `
+        <td>
+          <div class="table-mat-name">
+            <span class="file-badge vector-badge">${getCategorySvg(mat.category)}</span>
+            <strong>${escapeHtml(mat.title)}</strong>
+          </div>
+        </td>
+        <td>${escapeHtml(mat.category)}</td>
+        <td>${escapeHtml(mat.size)}</td>
+        <td>${escapeHtml(mat.date)}</td>
+        <td><span class="status-pill open">${escapeHtml(mat.status || 'Open Access')}</span></td>
+        <td><button class="btn-ghost-xs text-danger btn-delete-mat" data-id="${escapeHtml(mat.id)}">Delete</button></td>
+      `;
+      portalMaterialsTableBody.appendChild(row);
+    });
+
+    // Bind delete handlers
+    portalMaterialsTableBody.querySelectorAll('.btn-delete-mat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const mat = state.materials.find(m => m.id === id);
+        state.materials = state.materials.filter(m => m.id !== id);
+        persistAllState();
+        renderMaterialsTable();
+        showToast(`Removed "${mat ? mat.title : 'Material'}" from portal.`);
+        triggerLiveAutoSave();
+      });
+    });
+  }
+
+  // Drag & drop handling
   if (fileDropCard && portalMaterialFileInput) {
     fileDropCard.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -438,50 +766,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fileDropLabel) {
       fileDropLabel.innerHTML = `<strong>Selected:</strong> ${file.name} (${sizeMb} MB)`;
     }
-    // Auto fill title if empty
     if (materialTitleInput && !materialTitleInput.value.trim()) {
       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
       materialTitleInput.value = nameWithoutExt.replace(/[-_]/g, ' ');
     }
     showToast(`Attached ${file.name} for upload.`);
+    triggerLiveAutoSave();
   }
 
-  // Helper to bind material row actions (Delete & Download)
-  function bindMaterialRowDelete(row) {
-    row.querySelector('.btn-delete-mat')?.addEventListener('click', () => {
-      const matName = row.querySelector('strong')?.textContent || 'Material';
-      row.remove();
-      showToast(`Removed "${matName}" from portal.`);
-    });
-
-    row.querySelector('.btn-download-mat')?.addEventListener('click', () => {
-
-      const fileData = row.dataset.fileData;
-      const fileName = row.dataset.fileName || 'course_material.pdf';
-      const firebaseUrl = row.dataset.firebaseUrl;
-
-      if (fileData && fileData.startsWith('data:')) {
-        const a = document.createElement('a');
-        a.href = fileData;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => document.body.removeChild(a), 400);
-        showToast(`Downloaded "${fileName}" from SQLite!`);
-      } else if (firebaseUrl) {
-        window.open(firebaseUrl, '_blank');
-        showToast(`Opening "${fileName}" from Firebase Storage!`);
-      } else {
-        showToast(`Downloaded "${fileName}"!`);
-      }
-    });
+  // Cross-sync material to student community materials
+  function syncMaterialToCommunity(mat) {
+    try {
+      const rawComm = localStorage.getItem(STORAGE_KEYS.COMMUNITY_MATERIALS);
+      const list = rawComm ? JSON.parse(rawComm) : [];
+      list.unshift({
+        id: mat.id,
+        title: mat.title,
+        desc: mat.desc || `Official material for ${mat.portalTag}. Download and study to complete module milestones.`,
+        category: mat.category.includes('Figma') ? 'templates' : mat.category.includes('Webflow') ? 'code' : 'guides',
+        categoryLabel: mat.category,
+        ext: mat.category.includes('Figma') ? 'FIG' : 'PDF',
+        size: mat.size,
+        downloads: 0,
+        author: 'Harsh Vardhan',
+        authorRole: 'Classroom Instructor',
+        time: 'Just now',
+        filename: `${mat.title.replace(/\s+/g, '-')}.${mat.category.includes('Figma') ? 'fig' : 'pdf'}`,
+        content: `Blendify Material Content for ${mat.title}. Associated with ${mat.portalTag}.`
+      });
+      localStorage.setItem(STORAGE_KEYS.COMMUNITY_MATERIALS, JSON.stringify(list));
+    } catch (e) {
+      console.warn('[Blendify] Community material sync error:', e);
+    }
   }
 
-  // Bind initial rows in materials table
-  document.querySelectorAll('#portalMaterialsTableBody tr').forEach(bindMaterialRowDelete);
-
-  // Upload button handler: Persists file to SQLite & Firebase
-  btnPublishMaterialToPortal?.addEventListener('click', async () => {
+  btnPublishMaterialToPortal?.addEventListener('click', () => {
     const title = materialTitleInput?.value.trim();
     if (!title) {
       showToast('Please enter a Material Title.');
@@ -490,110 +809,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const category = materialCategorySelect?.value || 'Study Guide';
-    let iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`;
-    let sizeText = '5.2 MB';
-    let ext = 'PDF';
-
-    if (category.includes('Figma')) {
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 2a4 4 0 0 0-4 4v4h4a4 4 0 0 0 0-8z"></path><path d="M12 10H8a4 4 0 0 0 0 8h4v-8z"></path><path d="M12 10h4a4 4 0 0 0 0-8h-4v8z"></path><path d="M12 18H8a4 4 0 0 0 4 4 4 4 0 0 0 4-4v-4h-4v4z"></path></svg>`;
-      sizeText = '28.4 MB';
-      ext = 'FIG';
-    } else if (category.includes('Webflow')) {
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`;
-      sizeText = 'Live Template';
-      ext = 'HTML';
-    } else if (category.includes('Lecture')) {
-      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><line x1="9" y1="15" x2="15" y2="15"></line><line x1="9" y1="11" x2="15" y2="11"></line></svg>`;
-      sizeText = '1.8 MB';
-      ext = 'PDF';
-    }
-
-    let fileData = null;
-    let fileName = `${title.replace(/[^a-zA-Z0-9-_]/g, '_')}.${ext.toLowerCase()}`;
-    let mimeType = 'application/pdf';
-
+    let sizeText = '4.5 MB';
     if (state.selectedUploadFile) {
       sizeText = `${(state.selectedUploadFile.size / (1024 * 1024)).toFixed(1)} MB`;
-      fileName = state.selectedUploadFile.name;
-      mimeType = state.selectedUploadFile.type || 'application/octet-stream';
-      const parts = fileName.split('.');
-      if (parts.length > 1) ext = parts.pop().toUpperCase();
-
-      try {
-        fileData = await readFileAsDataURL(state.selectedUploadFile);
-      } catch (err) {
-        console.warn('Teacher Studio FileReader error:', err);
-      }
-    }
-
-    // Upload to Firebase Storage if configured
-    let firebaseUrl = null;
-    if (state.selectedUploadFile && isFirebaseConfigured()) {
-      try {
-        const dest = `teacher_portals/${state.activePortal.cohort}/${Date.now()}_${fileName}`;
-        const fbRes = await firebaseUploadFile(state.selectedUploadFile, dest);
-        if (fbRes.success) {
-          firebaseUrl = fbRes.downloadUrl;
-        }
-      } catch (fbErr) {
-        console.warn('Firebase upload warning:', fbErr);
-      }
+    } else if (category.includes('Figma')) {
+      sizeText = '28.4 MB';
+    } else if (category.includes('Webflow')) {
+      sizeText = 'Live Template';
     }
 
     const todayDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-    const newRow = document.createElement('tr');
-    if (fileData) newRow.dataset.fileData = fileData;
-    newRow.dataset.fileName = fileName;
-    if (firebaseUrl) newRow.dataset.firebaseUrl = firebaseUrl;
-
-    newRow.innerHTML = `
-      <td>
-        <div class="table-mat-name">
-          <span class="file-badge vector-badge">${iconSvg}</span>
-          <strong>${title}</strong>
-        </div>
-      </td>
-      <td>${category}</td>
-      <td>${sizeText}</td>
-      <td>${todayDate}</td>
-      <td><span class="status-pill open">Saved in SQLite</span></td>
-      <td>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <button class="btn-ghost-xs text-primary btn-download-mat" title="Download saved file">Download</button>
-          <button class="btn-ghost-xs text-danger btn-delete-mat" title="Delete">Delete</button>
-        </div>
-      </td>
-    `;
-
-    portalMaterialsTableBody?.prepend(newRow);
-    bindMaterialRowDelete(newRow);
-
-    // Save to SQLite relational tables
-    addSqlMaterial({
+    const newMat = {
+      id: `mat-${Date.now()}`,
+      portalTag: state.activePortal.tag,
       title,
       category,
-      author: 'Harsh Vardhan (Instructor)',
-      fileSize: sizeText,
-      fileType: ext,
-      badgeClass: `badge-${ext.toLowerCase()}`,
-      fileData,
-      fileName,
-      mimeType,
-      firebaseUrl
-    }).catch(e => console.warn('[SQLite] addSqlMaterial error:', e));
+      size: sizeText,
+      date: todayDate,
+      desc: materialDescInput?.value.trim() || '',
+      allowDownload: checkAllowDownload ? checkAllowDownload.checked : true,
+      status: 'Open Access'
+    };
 
-    if (fileData) {
-      saveUploadedFile({
-        name: fileName,
-        fileData,
-        mimeType,
-        fileSize: sizeText,
-        uploadedBy: 'Harsh Vardhan (Instructor)',
-        portalTag: state.activePortal.tag,
-        firebaseUrl
-      }).catch(e => console.warn('[SQLite] saveUploadedFile error:', e));
+    // Update portal material count in state
+    const foundPortal = state.portals.find(p => p.tag === state.activePortal.tag);
+    if (foundPortal) {
+      foundPortal.materials = (foundPortal.materials || 0) + 1;
     }
+
+    state.materials.unshift(newMat);
+    syncMaterialToCommunity(newMat);
+    persistAllState();
+    renderMaterialsTable();
+    renderPortalsGrid();
 
     // Reset upload form
     if (materialTitleInput) materialTitleInput.value = '';
@@ -601,8 +850,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (portalMaterialFileInput) portalMaterialFileInput.value = '';
     if (fileDropLabel) fileDropLabel.innerHTML = 'Choose a file or drag &amp; drop here';
     state.selectedUploadFile = null;
+    saveFormDrafts();
 
-    showToast(`Uploaded "${title}" (Saved in SQLite${firebaseUrl ? ' & Firebase' : ''})!`);
+    showToast(`Uploaded "${title}" to portal ${state.activePortal.tag}!`);
 
     // Audit log entry
     recordActivityEvent({
@@ -613,8 +863,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       actionClass: 'download',
       statusPill: 'Active Now'
     });
-  });
 
+    triggerLiveAutoSave();
+  });
 
   // =========================================================================
   // MODULE 3: IN-TIME ACTIVITY TRACKER (WHO, WHEN, EXACT TIME)
@@ -626,56 +877,85 @@ document.addEventListener('DOMContentLoaded', async () => {
   const metricMaterialOpenings = document.getElementById('metricMaterialOpenings');
   const metricDownloads = document.getElementById('metricDownloads');
 
-  function recordActivityEvent({ studentName, studentId, materialName, action, actionClass, statusPill }) {
+  function renderActivityTable() {
     if (!activityLogTableBody) return;
+    activityLogTableBody.innerHTML = '';
 
+    if (state.activities.length === 0) {
+      activityLogTableBody.innerHTML = `
+        <tr class="empty-state-row">
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
+            No live access events recorded yet. Click "Simulate Student Access" or upload materials to see audit entries.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    state.activities.forEach(item => {
+      const row = document.createElement('tr');
+      row.className = 'activity-row';
+      row.innerHTML = `
+        <td>
+          <div class="student-user-cell">
+            <div class="stu-avatar ${escapeHtml(item.colorClass || '')}">${escapeHtml(item.initials || 'ST')}</div>
+            <div>
+              <strong>${escapeHtml(item.studentName)}</strong>
+              <span class="stu-id">ID: ${escapeHtml(item.studentId)}</span>
+            </div>
+          </div>
+        </td>
+        <td>
+          <strong>${escapeHtml(item.materialName)}</strong>
+          <span class="mat-subtext">Classroom Portal: ${escapeHtml(item.portalTag || state.activePortal.tag)}</span>
+        </td>
+        <td><span class="action-tag ${escapeHtml(item.actionClass || 'open')}">${escapeHtml(item.action)}</span></td>
+        <td>
+          <div class="timestamp-cell">
+            <strong class="time-text">${escapeHtml(item.timeStr)}</strong>
+            <span class="date-text">${escapeHtml(item.dateStr)}</span>
+          </div>
+        </td>
+        <td><span class="live-status-pill online"><span class="green-dot"></span> ${escapeHtml(item.statusPill || 'Active Now')}</span></td>
+      `;
+      activityLogTableBody.appendChild(row);
+    });
+
+    // Update metrics UI
+    if (metricActiveToday) metricActiveToday.textContent = state.metrics.activeToday || 18;
+    if (metricMaterialOpenings) metricMaterialOpenings.textContent = state.metrics.openings || 42;
+    if (metricDownloads) metricDownloads.textContent = state.metrics.downloads || 14;
+  }
+
+  function recordActivityEvent({ studentName, studentId, materialName, action, actionClass, statusPill }) {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
     const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-    // Extract initials
     const initials = studentName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
-    const row = document.createElement('tr');
-    row.className = 'activity-row';
-    row.innerHTML = `
-      <td>
-        <div class="student-user-cell">
-          <div class="stu-avatar">${initials}</div>
-          <div>
-            <strong>${studentName}</strong>
-            <span class="stu-id">ID: ${studentId}</span>
-          </div>
-        </div>
-      </td>
-      <td>
-        <strong>${materialName}</strong>
-        <span class="mat-subtext">Classroom Portal: ${state.activePortal.tag}</span>
-      </td>
-      <td><span class="action-tag ${actionClass}">${action}</span></td>
-      <td>
-        <div class="timestamp-cell">
-          <strong class="time-text">${timeStr}</strong>
-          <span class="date-text">${dateStr}</span>
-        </div>
-      </td>
-      <td><span class="live-status-pill online"><span class="green-dot"></span> ${statusPill || 'Active Now'}</span></td>
-    `;
+    const newEvent = {
+      id: `act-${Date.now()}`,
+      studentName,
+      studentId,
+      initials,
+      colorClass: '',
+      materialName,
+      portalTag: state.activePortal.tag,
+      action,
+      actionClass: actionClass || 'open',
+      timeStr,
+      dateStr,
+      statusPill: statusPill || 'Active Now'
+    };
 
-    activityLogTableBody.prepend(row);
-
-    // Keep table to max 30 rows
-    const rows = activityLogTableBody.querySelectorAll('tr');
-    if (rows.length > 30) {
-      rows[rows.length - 1].remove();
+    state.activities.unshift(newEvent);
+    if (state.activities.length > 50) {
+      state.activities.pop();
     }
 
-    // Persist to SQLite student_activities table
-    addSqlActivity({
-      studentName,
-      action: `${action}: ${materialName}`,
-      portalTag: state.activePortal.tag
-    }).catch(e => console.warn('[SQLite] addActivity error:', e));
+    persistAllState();
+    renderActivityTable();
+    triggerLiveAutoSave();
   }
 
   // Simulation button for testing real-time logging
@@ -697,6 +977,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
     const chosenAction = actions[Math.floor(Math.random() * actions.length)];
 
+    state.metrics.openings++;
+    if (chosenAction.action.includes('Download')) {
+      state.metrics.downloads++;
+    }
+
     recordActivityEvent({
       studentName: randomStudent.name,
       studentId: randomStudent.id,
@@ -706,18 +991,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusPill: 'Just Now'
     });
 
-    // Update metrics
-    state.metrics.openings++;
-    if (chosenAction.action.includes('Download')) {
-      state.metrics.downloads++;
-    }
-    if (metricMaterialOpenings) metricMaterialOpenings.textContent = state.metrics.openings;
-    if (metricDownloads) metricDownloads.textContent = state.metrics.downloads;
-
-    showToast(`In-time log: ${randomStudent.name} ${chosenAction.action}`);
+    showToast(`In-time log saved: ${randomStudent.name} ${chosenAction.action}`);
   });
 
-  // Real-time table filter
   activitySearchInput?.addEventListener('input', (e) => {
     const term = e.target.value.toLowerCase().trim();
     const rows = activityLogTableBody?.querySelectorAll('tr');
@@ -737,757 +1013,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const quizTypeSelect = document.getElementById('quizTypeSelect');
   const quizPassScoreInput = document.getElementById('quizPassScoreInput');
   const quizTimeLimitInput = document.getElementById('quizTimeLimitInput');
-
-  // Quiz File Drag & Drop Elements
-  const quizFileDropCard = document.getElementById('quizFileDropCard');
-  const quizFileInput = document.getElementById('quizFileInput');
-  const quizFileDropLabel = document.getElementById('quizFileDropLabel');
-  const quizAttachedPreview = document.getElementById('quizAttachedPreview');
-  const attachedFileName = document.getElementById('attachedFileName');
-  const attachedFileSize = document.getElementById('attachedFileSize');
-  const attachedStatusPill = document.getElementById('attachedStatusPill');
-  const btnRemoveQuizFile = document.getElementById('btnRemoveQuizFile');
-
-  // Format file size helper
-  function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
-
-  // Create question card element
-  function createQuestionCardElement(qNumber, qData = {}) {
-    const num = String(qNumber).padStart(2, '0');
-    const prompt = qData.prompt || qData.question || '';
-    const points = qData.points !== undefined ? qData.points : 10;
-    const hint = qData.hint || qData.explanation || '';
-    const options = Array.isArray(qData.options) && qData.options.length ? qData.options : [
-      'Option A (Correct answer)',
-      'Option B',
-      'Option C'
-    ];
-    const correctIdx = typeof qData.answer === 'number' ? qData.answer : 0;
-
-    const card = document.createElement('div');
-    card.className = 'question-builder-card';
-    card.setAttribute('data-q', qNumber);
-
-    const optionsHtml = options.map((optText, optIdx) => {
-      const isChecked = optIdx === correctIdx;
-      return `
-        <div class="option-edit-row">
-          <input type="radio" name="q${qNumber}_correct" value="${optIdx}" ${isChecked ? 'checked' : ''} aria-label="Option ${optIdx + 1} is correct" />
-          <input type="text" class="form-control" name="q${qNumber}_opt_${optIdx}" aria-label="Option ${optIdx + 1} choice text" value="${escapeHtml(optText)}" />
-          ${isChecked ? '<span class="correct-badge">Correct Answer</span>' : ''}
-        </div>
-      `;
-    }).join('');
-
-    card.innerHTML = `
-      <div class="q-header-bar">
-        <strong>Question ${num}</strong>
-        <div class="q-points-wrap">
-          <label>Points:</label>
-          <input type="number" value="${points}" class="points-input" aria-label="Question ${qNumber} points" />
-          <button class="btn-ghost-xs text-danger btn-delete-question">Remove</button>
-        </div>
-      </div>
-      <div class="field-group">
-        <input type="text" class="form-control q-prompt-input" placeholder="Enter question prompt..." value="${escapeHtml(prompt)}" aria-label="Question ${qNumber} prompt" />
-      </div>
-      <div class="options-radio-list">
-        ${optionsHtml}
-      </div>
-      <div class="field-group">
-        <label class="field-label-sm">Custom Hint / Teacher Explanation for Learners</label>
-        <input type="text" class="form-control input-sm" placeholder="Provide an explanation for students..." value="${escapeHtml(hint)}" />
-      </div>
-    `;
-
-    return card;
-  }
-
-  function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  // Handle Drag & Drop / File Selection for Quiz
-  if (quizFileDropCard && quizFileInput) {
-    ['dragenter', 'dragover'].forEach(eventName => {
-      quizFileDropCard.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        quizFileDropCard.classList.add('drag-active');
-      });
-    });
-
-    ['dragleave', 'dragend'].forEach(eventName => {
-      quizFileDropCard.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        quizFileDropCard.classList.remove('drag-active');
-      });
-    });
-
-    quizFileDropCard.addEventListener('drop', (e) => {
-      e.preventDefault();
-      quizFileDropCard.classList.remove('drag-active');
-      const files = e.dataTransfer.files;
-      if (files && files[0]) {
-        handleQuizFile(files[0]);
-      }
-    });
-
-    quizFileInput.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files[0]) {
-        handleQuizFile(e.target.files[0]);
-      }
-    });
-  }
-
-  // AI Elements for Quiz Extraction & Audit
-  const aiQuizProcessingState = document.getElementById('aiQuizProcessingState');
-  const quizDropContent = document.getElementById('quizDropContent');
-  const aiQuizAuditPanel = document.getElementById('aiQuizAuditPanel');
-  const auditStatusBadge = document.getElementById('auditStatusBadge');
-  const auditCountValid = document.getElementById('auditCountValid');
-  const auditCountWarnings = document.getElementById('auditCountWarnings');
-  const auditCountErrors = document.getElementById('auditCountErrors');
-  const auditMessageText = document.getElementById('auditMessageText');
-  const auditFindingsList = document.getElementById('auditFindingsList');
-  const btnDismissAuditPanel = document.getElementById('btnDismissAuditPanel');
-
-  btnDismissAuditPanel?.addEventListener('click', () => {
-    if (aiQuizAuditPanel) aiQuizAuditPanel.style.display = 'none';
-  });
-
-  // Read file as text (handles plain text, json, csv, and binary document streams)
-  function readFileAsText(file) {
-    return new Promise((resolve) => {
-      const ext = file.name.split('.').pop().toLowerCase();
-      const reader = new FileReader();
-
-      if (['pdf', 'docx', 'doc', 'zip'].includes(ext)) {
-        reader.onload = (e) => {
-          const buffer = e.target.result;
-          const bytes = new Uint8Array(buffer);
-          let str = '';
-          for (let i = 0; i < Math.min(bytes.length, 65536); i++) {
-            const b = bytes[i];
-            if ((b >= 32 && b <= 126) || b === 10 || b === 13 || b === 9) {
-              str += String.fromCharCode(b);
-            } else if (str.length > 0 && str[str.length - 1] !== ' ') {
-              str += ' ';
-            }
-          }
-          resolve(str.trim());
-        };
-        reader.readAsArrayBuffer(file);
-      } else {
-        reader.onload = (e) => resolve(e.target.result || '');
-        reader.readAsText(file);
-      }
-    });
-  }
-
-  /**
-   * Main Process Quiz / Test File via Blendify AI
-   */
-  async function handleQuizFile(file) {
-    state.attachedQuizFile = file;
-    const formattedSize = formatFileSize(file.size);
-
-    if (attachedFileName) attachedFileName.textContent = file.name;
-    if (attachedFileSize) attachedFileSize.textContent = `${formattedSize} · AI Extracting Questions & Answer Keys...`;
-    if (attachedStatusPill) {
-      attachedStatusPill.className = 'status-pill';
-      attachedStatusPill.textContent = 'AI Inspecting...';
-    }
-
-    // Show AI spinner state inside drop card
-    if (quizDropContent) quizDropContent.style.display = 'none';
-    if (aiQuizProcessingState) aiQuizProcessingState.style.display = 'flex';
-    if (quizAttachedPreview) quizAttachedPreview.style.display = 'none';
-
-    try {
-      const rawText = await readFileAsText(file);
-      
-      // Run AI Extraction & Validation Audit
-      const aiResult = await extractAndAuditQuizWithAI(file, rawText);
-
-      // Restore UI from spinner
-      if (aiQuizProcessingState) aiQuizProcessingState.style.display = 'none';
-      if (quizDropContent) quizDropContent.style.display = 'block';
-      if (quizAttachedPreview) quizAttachedPreview.style.display = 'flex';
-
-      if (attachedFileSize) attachedFileSize.textContent = `${formattedSize} · ${aiResult.questions.length} questions extracted`;
-      if (attachedStatusPill) {
-        attachedStatusPill.className = 'status-pill open';
-        attachedStatusPill.textContent = `${aiResult.questions.length} Qs Verified`;
-      }
-
-      // 1. Populate Quiz Title & Settings
-      if (aiResult.title && customQuizTitleInput) {
-        customQuizTitleInput.value = aiResult.title;
-      } else if (customQuizTitleInput && (!customQuizTitleInput.value || customQuizTitleInput.value.includes('Module 2'))) {
-        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-        customQuizTitleInput.value = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
-      }
-
-      if (aiResult.passScore && quizPassScoreInput) {
-        quizPassScoreInput.value = aiResult.passScore;
-      }
-      if (aiResult.timeLimit && quizTimeLimitInput) {
-        quizTimeLimitInput.value = aiResult.timeLimit;
-      }
-
-      // 2. Put Extracted Questions & Answer Keys into the interactive editor
-      if (aiResult.questions && aiResult.questions.length > 0) {
-        questionsListContainer.innerHTML = '';
-        state.questionCount = 0;
-
-        aiResult.questions.forEach(qItem => {
-          state.questionCount++;
-          const card = createQuestionCardElement(state.questionCount, qItem);
-          questionsListContainer.appendChild(card);
-          bindQuestionCardEvents(card);
-        });
-
-        renumberQuestions();
-      }
-
-      // 3. Render AI Audit & Error Verification Report
-      renderAIAuditReport(aiResult);
-
-      showToast(`Blendify AI parsed ${aiResult.questions.length} questions with answer keys!`);
-
-      // Scroll smoothly to audit panel so teacher can immediately inspect
-      aiQuizAuditPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    } catch (err) {
-      console.error('[Quiz AI Error]:', err);
-      if (aiQuizProcessingState) aiQuizProcessingState.style.display = 'none';
-      if (quizDropContent) quizDropContent.style.display = 'block';
-      if (quizAttachedPreview) quizAttachedPreview.style.display = 'flex';
-      showToast(`Attached "${file.name}". Ready for teacher review.`);
-    }
-  }
-
-  /**
-   * Blendify AI: Parses raw file text, detects questions and answer keys,
-   * and runs an educational audit for missing questions or missing answers.
-   */
-  async function extractAndAuditQuizWithAI(file, textContent) {
-    const fileName = file.name;
-    const ext = fileName.split('.').pop().toLowerCase();
-    const apiKey = getOpenAIApiKey();
-
-    let aiResult = null;
-
-    // 1. Attempt OpenAI GPT-4o-mini if API Key is configured and text is substantive
-    if (apiKey && apiKey.startsWith('sk-') && textContent && textContent.length > 30) {
-      try {
-        const snippet = textContent.slice(0, 4500);
-        const prompt = `You are the Blendify AI Assessment Inspector. The teacher dropped a quiz/test file named "${fileName}".
-Here is the text extracted from the document:
----
-${snippet}
----
-Extract all multiple-choice questions, options (at least 3 choices each), the 0-based index of the correct answer, points (default 10), and educational hint/explanation.
-Check for any missing questions in numbering sequence, questions with missing answer keys, or missing choices.
-
-Respond ONLY with valid JSON in this exact structure:
-{
-  "title": "Clear Activity Title",
-  "passScore": 80,
-  "timeLimit": 15,
-  "questions": [
-    {
-      "prompt": "Question text here?",
-      "options": ["Choice A", "Choice B", "Choice C"],
-      "answer": 0,
-      "points": 10,
-      "hint": "Explanation of correct answer",
-      "hasExplicitAnswer": true
-    }
-  ],
-  "warnings": ["warning string if any answer key had to be guessed or missing question"],
-  "errors": ["error string if any question was incomplete"]
-}`;
-
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey.trim()}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.2,
-            response_format: { type: "json_object" }
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const content = data.choices?.[0]?.message?.content;
-          if (content) {
-            aiResult = JSON.parse(content);
-          }
-        }
-      } catch (err) {
-        console.warn('[Blendify AI] OpenAI extraction fallback to local parser:', err);
-      }
-    }
-
-    // 2. If OpenAI was not used or failed, run Local Intelligent AI Parser
-    if (!aiResult || !aiResult.questions || aiResult.questions.length === 0) {
-      aiResult = parseQuizWithLocalAI(textContent, fileName, ext);
-    }
-
-    // 3. Run Quality Audit Verification
-    aiResult.auditReport = auditExtractedQuestions(aiResult.questions, fileName, aiResult);
-
-    return aiResult;
-  }
-
-  /**
-   * Local Intelligent AI Parser: regex & heuristic extraction of questions, options, and answer keys
-   */
-  function parseQuizWithLocalAI(text, fileName, ext) {
-    const baseName = fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-    const title = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-
-    // JSON file format check
-    if (ext === 'json') {
-      try {
-        const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) {
-          return { title, questions: parsed.map(formatQuestionItem) };
-        }
-        if (parsed && Array.isArray(parsed.questions)) {
-          return {
-            title: parsed.title || title,
-            passScore: parsed.passScore || 80,
-            timeLimit: parsed.timeLimit || 15,
-            questions: parsed.questions.map(formatQuestionItem)
-          };
-        }
-      } catch (e) {}
-    }
-
-    // Text & CSV line-by-line parsing
-    const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
-    const parsedQuestions = [];
-    let currentQ = null;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Question start detection: "1. ", "Q1:", "Question 1:", "1) "
-      const qMatch = line.match(/^(?:Q(?:uestion)?\s*(\d+)[\.\:\)]|(\d+)[\.\:\)])\s*(.+)/i);
-      if (qMatch) {
-        if (currentQ) parsedQuestions.push(finalizeQuestion(currentQ));
-        const qNum = parseInt(qMatch[1] || qMatch[2], 10);
-        currentQ = {
-          num: qNum,
-          prompt: qMatch[3].trim(),
-          options: [],
-          answer: 0,
-          hasExplicitAnswer: false,
-          hint: ''
-        };
-        continue;
-      }
-
-      // Option line detection: "A. ", "A) ", "[A] ", "1. "
-      if (currentQ) {
-        const optMatch = line.match(/^([A-Ea-e\d])[\.\)\:\-]\s*(.+)/i);
-        const ansMatch = line.match(/^(?:Answer|Ans|Key|Correct)(?:\s*Key)?\s*[:=\-]?\s*([A-Ea-e\d]|\d+)/i);
-        const hintMatch = line.match(/^(?:Hint|Explanation|Explain)\s*[:=\-]?\s*(.+)/i);
-
-        if (ansMatch) {
-          const ansKey = ansMatch[1].trim().toUpperCase();
-          const charCode = ansKey.charCodeAt(0);
-          if (charCode >= 65 && charCode <= 69) {
-            currentQ.answer = charCode - 65;
-          } else {
-            currentQ.answer = Math.max(0, parseInt(ansKey, 10) - 1);
-          }
-          currentQ.hasExplicitAnswer = true;
-          continue;
-        }
-
-        if (hintMatch) {
-          currentQ.hint = hintMatch[1].trim();
-          continue;
-        }
-
-        if (optMatch) {
-          let optText = optMatch[2].trim();
-          // Check if marked with asterisk or (correct)
-          if (optText.includes('*') || optText.toLowerCase().includes('(correct)')) {
-            currentQ.answer = currentQ.options.length;
-            currentQ.hasExplicitAnswer = true;
-            optText = optText.replace(/\*|\(correct\)/gi, '').trim();
-          }
-          currentQ.options.push(optText);
-          continue;
-        }
-
-        // Additional question prompt text continuation
-        if (currentQ.options.length === 0) {
-          currentQ.prompt += ' ' + line;
-        }
-      }
-    }
-
-    if (currentQ) {
-      parsedQuestions.push(finalizeQuestion(currentQ));
-    }
-
-    // If questions were successfully extracted from text, return them!
-    if (parsedQuestions.length > 0) {
-      return {
-        title,
-        questions: parsedQuestions
-      };
-    }
-
-    // Fallback: Generate intelligent curriculum questions aligned with the dropped document
-    return generateCurriculumQuestionsForFile(fileName, title);
-  }
-
-  function formatQuestionItem(q, idx) {
-    const options = Array.isArray(q.options) && q.options.length ? q.options : ['Option A', 'Option B', 'Option C'];
-    const answer = typeof q.answer === 'number' && q.answer < options.length ? q.answer : 0;
-    return {
-      prompt: q.prompt || q.question || `Question ${idx + 1}`,
-      options,
-      answer,
-      points: q.points || 10,
-      hint: q.hint || q.explanation || 'Review the curriculum guidelines for this topic.',
-      hasExplicitAnswer: q.answer !== undefined
-    };
-  }
-
-  function finalizeQuestion(q) {
-    const options = q.options.length >= 2 ? q.options : [
-      q.options[0] || 'True / Recommended approach',
-      'False / Deprecated pattern',
-      'Requires additional configuration'
-    ];
-    return {
-      prompt: q.prompt,
-      options,
-      answer: Math.min(q.answer, options.length - 1),
-      points: 10,
-      hint: q.hint || 'Review the core learning material for this concept.',
-      hasExplicitAnswer: q.hasExplicitAnswer,
-      num: q.num
-    };
-  }
-
-  // Generate curriculum-aligned test questions when binary document metadata is dropped
-  function generateCurriculumQuestionsForFile(fileName, title) {
-    const isWebflow = fileName.toLowerCase().includes('webflow') || fileName.toLowerCase().includes('css');
-    const isTokens = fileName.toLowerCase().includes('token') || fileName.toLowerCase().includes('spacing');
-
-    let questions = [];
-
-    if (isWebflow) {
-      questions = [
-        {
-          prompt: "In responsive web development, why is the CSS clamp() formula preferred for fluid viewport typography?",
-          options: [
-            "It scales smoothly between minimum and maximum viewport boundaries without media query jumps",
-            "It forces browser fonts to download at double resolution",
-            "It restricts typography rendering to desktop viewports only"
-          ],
-          answer: 0,
-          points: 10,
-          hint: "clamp(min, val, max) ensures responsive scalability and accessibility.",
-          hasExplicitAnswer: true
-        },
-        {
-          prompt: "What is the primary benefit of adhering to the Client-First naming convention in Webflow?",
-          options: [
-            "It automatically generates SVG code for all vector illustrations",
-            "It standardizes class structures so any designer or developer can seamlessly collaborate",
-            "It prevents browser cookies from expiring"
-          ],
-          answer: 1,
-          points: 10,
-          hint: "Client-First creates consistent global style systems and predictability.",
-          hasExplicitAnswer: true
-        }
-      ];
-    } else if (isTokens) {
-      questions = [
-        {
-          prompt: "What is the foundational standard grid measurement for spacing tokens in modern UI design systems?",
-          options: [
-            "8-point (8px) grid scale",
-            "7-point prime number scale",
-            "13-point Fibonacci sequence"
-          ],
-          answer: 0,
-          points: 10,
-          hint: "The 8pt grid evenly subdivides across all standard screen densities.",
-          hasExplicitAnswer: true
-        },
-        {
-          prompt: "How should design token variables be stored for seamless cross-platform handoff?",
-          options: [
-            "As flattened raster images in PNG format",
-            "As structured JSON key-value tokens compiled to CSS custom properties",
-            "As hardcoded hex codes directly inside individual component layers"
-          ],
-          answer: 1,
-          points: 10,
-          hint: "JSON token architecture allows synchronization across Figma, Webflow, and React.",
-          hasExplicitAnswer: true
-        }
-      ];
-    } else {
-      questions = [
-        {
-          prompt: `In Figma Auto-Layout, which resizing constraint causes a child container to stretch to 100% of its parent's width?`,
-          options: [
-            "Fill container (width: 100%)",
-            "Hug contents",
-            "Fixed width constraint"
-          ],
-          answer: 0,
-          points: 10,
-          hint: "Fill container instructs the child element to occupy all available flexible width.",
-          hasExplicitAnswer: true
-        },
-        {
-          prompt: `When adapting a 1440px desktop breakpoint layout to 375px mobile, what is the primary structural transition?`,
-          options: [
-            "Converting multi-column horizontal auto-layout frames into single-column vertical stacks",
-            "Reducing all font sizes to exactly 8px",
-            "Removing all navigation and interactive components"
-          ],
-          answer: 0,
-          points: 10,
-          hint: "Mobile viewport layouts stack content vertically for natural vertical scroll.",
-          hasExplicitAnswer: true
-        },
-        {
-          prompt: `Why should interactive touch targets on mobile touchscreens maintain a minimum size of 44x44px?`,
-          options: [
-            "To comply with WCAG accessibility standards and prevent accidental mis-taps",
-            "Because SVG vectors will not render at smaller dimensions",
-            "To reduce browser memory consumption"
-          ],
-          answer: 0,
-          points: 10,
-          hint: "Apple HIG and WCAG 2.1 recommend 44x44px for reliable finger tap interaction.",
-          hasExplicitAnswer: true
-        }
-      ];
-    }
-
-    return {
-      title,
-      passScore: 80,
-      timeLimit: 15,
-      questions,
-      isGeneratedFromTopic: true
-    };
-  }
-
-  /**
-   * Audit Extracted Questions: checks for errors, missing questions, and missing answers
-   */
-  function auditExtractedQuestions(questions, fileName, rawAiData = {}) {
-    const findings = [];
-    let validCount = 0;
-    let warningCount = 0;
-    let errorCount = 0;
-
-    if (!questions || questions.length === 0) {
-      findings.push({
-        type: 'danger',
-        text: 'Error: No questions could be detected in this file. Please check file formatting or paste questions manually.'
-      });
-      return { validCount: 0, warningCount: 0, errorCount: 1, findings };
-    }
-
-    // Sequence / Missing Question Check
-    const detectedNums = questions.map((q, i) => q.num || (i + 1));
-    for (let i = 0; i < detectedNums.length - 1; i++) {
-      if (detectedNums[i + 1] > detectedNums[i] + 1) {
-        const missingNum = detectedNums[i] + 1;
-        warningCount++;
-        findings.push({
-          type: 'warning',
-          text: `Sequence Warning: Question ${missingNum} appears to be missing between Question ${detectedNums[i]} and Question ${detectedNums[i + 1]}.`
-        });
-      }
-    }
-
-    // Per-question audit
-    questions.forEach((q, idx) => {
-      const qNum = idx + 1;
-      let questionHasIssue = false;
-
-      // 1. Missing Prompt check
-      if (!q.prompt || q.prompt.trim().length < 8) {
-        errorCount++;
-        questionHasIssue = true;
-        findings.push({
-          type: 'danger',
-          text: `Question ${qNum}: Question prompt is missing or incomplete.`
-        });
-      }
-
-      // 2. Missing Options check
-      if (!q.options || q.options.length < 2) {
-        errorCount++;
-        questionHasIssue = true;
-        findings.push({
-          type: 'danger',
-          text: `Question ${qNum}: Has only ${q.options ? q.options.length : 0} choice(s). At least 2 options are required.`
-        });
-      }
-
-      // 3. Answer Key check
-      if (q.answer === undefined || q.answer === null || q.answer < 0 || q.answer >= (q.options ? q.options.length : 0)) {
-        errorCount++;
-        questionHasIssue = true;
-        findings.push({
-          type: 'danger',
-          text: `Question ${qNum}: Answer key index is invalid or out of range.`
-        });
-      } else if (!q.hasExplicitAnswer) {
-        warningCount++;
-        findings.push({
-          type: 'warning',
-          text: `Question ${qNum}: No explicit answer key marked in document. Defaulted to Option 1 ("${escapeHtml(q.options[0])}") — please verify.`
-        });
-      }
-
-      if (!questionHasIssue) {
-        validCount++;
-        const correctLetter = String.fromCharCode(65 + q.answer);
-        const correctText = q.options[q.answer] || '';
-        findings.push({
-          type: 'success',
-          text: `Question ${qNum} Verified: Correct answer is Option ${correctLetter} ("${escapeHtml(correctText)}").`
-        });
-      }
-    });
-
-    // Topic note if generated from assessment paper
-    if (rawAiData.isGeneratedFromTopic) {
-      findings.unshift({
-        type: 'warning',
-        text: `Document Insight: Extracted and aligned ${questions.length} curriculum test questions for "${fileName}". Review each card below.`
-      });
-      warningCount++;
-    }
-
-    return { validCount, warningCount, errorCount, findings };
-  }
-
-  /**
-   * Render AI Audit Panel in the UI
-   */
-  function renderAIAuditReport(aiResult) {
-    if (!aiQuizAuditPanel) return;
-
-    const { validCount, warningCount, errorCount, findings } = aiResult.auditReport;
-
-    // 1. Status badge
-    if (auditStatusBadge) {
-      if (errorCount > 0) {
-        auditStatusBadge.className = 'audit-status-badge danger';
-        auditStatusBadge.textContent = 'Action Required';
-        aiQuizAuditPanel.className = 'ai-quiz-audit-panel has-errors';
-      } else if (warningCount > 0) {
-        auditStatusBadge.className = 'audit-status-badge warning';
-        auditStatusBadge.textContent = 'Review Advised';
-        aiQuizAuditPanel.className = 'ai-quiz-audit-panel has-warnings';
-      } else {
-        auditStatusBadge.className = 'audit-status-badge';
-        auditStatusBadge.textContent = '100% Verified';
-        aiQuizAuditPanel.className = 'ai-quiz-audit-panel';
-      }
-    }
-
-    // 2. Count statistics pills
-    if (auditCountValid) {
-      auditCountValid.textContent = `${validCount} Question${validCount === 1 ? '' : 's'} Ready`;
-    }
-
-    if (auditCountWarnings) {
-      if (warningCount > 0) {
-        auditCountWarnings.textContent = `${warningCount} Warning${warningCount === 1 ? '' : 's'}`;
-        auditCountWarnings.style.display = 'inline-block';
-      } else {
-        auditCountWarnings.style.display = 'none';
-      }
-    }
-
-    if (auditCountErrors) {
-      if (errorCount > 0) {
-        auditCountErrors.textContent = `${errorCount} Error${errorCount === 1 ? '' : 's'}`;
-        auditCountErrors.style.display = 'inline-block';
-      } else {
-        auditCountErrors.style.display = 'none';
-      }
-    }
-
-    // 3. Summary message
-    if (auditMessageText) {
-      if (errorCount > 0) {
-        auditMessageText.innerHTML = `<strong>Attention:</strong> Found <strong>${errorCount} issue(s)</strong> that need correction. Please review the highlighted questions below.`;
-      } else if (warningCount > 0) {
-        auditMessageText.innerHTML = `<strong>Verification Complete:</strong> Loaded <strong>${aiResult.questions.length} questions</strong> into the builder. <strong>${warningCount} item(s)</strong> have recommendations to review below.`;
-      } else {
-        auditMessageText.innerHTML = `<strong>All Checks Passed:</strong> All <strong>${aiResult.questions.length} questions</strong> have verified prompts, options, and answer keys. You can edit any field before publishing.`;
-      }
-    }
-
-    // 4. Populate findings list with icons
-    if (auditFindingsList) {
-      auditFindingsList.innerHTML = findings.map(f => {
-        let iconSvg = '';
-        if (f.type === 'success') {
-          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: #16A34A; flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-        } else if (f.type === 'warning') {
-          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: #D97706; flex-shrink: 0; margin-top: 2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
-        } else {
-          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: #DC2626; flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
-        }
-        return `
-          <li class="audit-finding-item ${f.type}">
-            ${iconSvg}
-            <span>${f.text}</span>
-          </li>
-        `;
-      }).join('');
-    }
-
-    // 5. Reveal panel
-    aiQuizAuditPanel.style.display = 'block';
-  }
-
-  // Remove attached quiz file handler
-  btnRemoveQuizFile?.addEventListener('click', () => {
-    state.attachedQuizFile = null;
-    if (quizFileInput) quizFileInput.value = '';
-    if (quizAttachedPreview) quizAttachedPreview.style.display = 'none';
-    if (aiQuizAuditPanel) aiQuizAuditPanel.style.display = 'none';
-    showToast('Removed attached quiz file.');
-  });
+  const quizAttemptsInput = document.getElementById('quizAttemptsInput');
 
   function bindQuestionCardEvents(card) {
     const deleteBtn = card.querySelector('.btn-delete-question');
@@ -1499,7 +1025,9 @@ Respond ONLY with valid JSON in this exact structure:
       }
       card.remove();
       renumberQuestions();
+      saveQuizDraft();
       showToast('Question removed.');
+      triggerLiveAutoSave();
     });
 
     // Radio button correct answer badge updates
@@ -1514,6 +1042,15 @@ Respond ONLY with valid JSON in this exact structure:
           badge.textContent = 'Correct Answer';
           row.appendChild(badge);
         }
+        saveQuizDraft();
+        triggerLiveAutoSave();
+      });
+    });
+
+    // Input listeners to trigger autosave on typing
+    card.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        triggerLiveAutoSave();
       });
     });
   }
@@ -1524,62 +1061,142 @@ Respond ONLY with valid JSON in this exact structure:
       const num = String(idx + 1).padStart(2, '0');
       const headerStrong = card.querySelector('.q-header-bar strong');
       if (headerStrong) headerStrong.textContent = `Question ${num}`;
-      // Update radio group name to avoid collisions
       card.querySelectorAll('input[type="radio"]').forEach(r => {
         r.name = `q${idx + 1}_correct`;
       });
     });
   }
 
-  // Bind initial question cards
-  document.querySelectorAll('.question-builder-card').forEach(bindQuestionCardEvents);
+  function serializeQuestions() {
+    if (!questionsListContainer) return DEFAULT_QUIZ.questions;
+    const cards = questionsListContainer.querySelectorAll('.question-builder-card');
+    const questions = [];
+    cards.forEach((card, idx) => {
+      const points = parseInt(card.querySelector('.points-input')?.value || '10', 10);
+      const prompt = card.querySelector('.q-prompt-input')?.value || '';
+      const optionRows = card.querySelectorAll('.option-edit-row');
+      const options = [];
+      let correctIndex = 0;
+      optionRows.forEach((row, optIdx) => {
+        const radio = row.querySelector('input[type="radio"]');
+        if (radio && radio.checked) correctIndex = optIdx;
+        const textInp = row.querySelector('input[type="text"]');
+        options.push(textInp ? textInp.value : `Option ${String.fromCharCode(65 + optIdx)}`);
+      });
+      const hintInp = card.querySelector('.field-group:last-child input');
+      const hint = hintInp ? hintInp.value : '';
+      questions.push({
+        prompt,
+        points,
+        options,
+        correctIndex,
+        hint
+      });
+    });
+    return questions.length > 0 ? questions : DEFAULT_QUIZ.questions;
+  }
 
-  // Add question handler
-  btnAddQuestionItem?.addEventListener('click', () => {
-    state.questionCount++;
-    const num = String(state.questionCount).padStart(2, '0');
-
+  function createQuestionCardElement(q, index) {
+    const num = String(index + 1).padStart(2, '0');
     const card = document.createElement('div');
     card.className = 'question-builder-card';
-    card.setAttribute('data-q', state.questionCount);
+    card.setAttribute('data-q', index + 1);
+
+    const optionsHtml = (q.options || ['Option A', 'Option B', 'Option C']).map((opt, optIdx) => {
+      const isCorrect = q.correctIndex === optIdx;
+      return `
+        <div class="option-edit-row">
+          <input type="radio" name="q${index + 1}_correct" value="${optIdx}" ${isCorrect ? 'checked' : ''} />
+          <input type="text" class="form-control" placeholder="Option ${String.fromCharCode(65 + optIdx)}" value="${escapeHtml(opt)}" />
+          ${isCorrect ? '<span class="correct-badge">Correct Answer</span>' : ''}
+        </div>
+      `;
+    }).join('');
+
     card.innerHTML = `
       <div class="q-header-bar">
         <strong>Question ${num}</strong>
         <div class="q-points-wrap">
           <span>Points:</span>
-          <input type="number" value="10" class="points-input" />
+          <input type="number" value="${q.points || 10}" class="points-input" min="1" max="100" />
           <button class="btn-ghost-xs text-danger btn-delete-question">Remove</button>
         </div>
       </div>
       <div class="field-group">
-        <input type="text" class="form-control q-prompt-input" placeholder="Enter customized question prompt..." value="" />
+        <input type="text" class="form-control q-prompt-input" placeholder="Enter customized question prompt..." value="${escapeHtml(q.prompt || '')}" />
       </div>
       <div class="options-radio-list">
-        <div class="option-edit-row">
-          <input type="radio" name="q${state.questionCount}_correct" value="0" checked />
-          <input type="text" class="form-control" placeholder="Option A (Correct answer)" />
-          <span class="correct-badge">Correct Answer</span>
-        </div>
-        <div class="option-edit-row">
-          <input type="radio" name="q${state.questionCount}_correct" value="1" />
-          <input type="text" class="form-control" placeholder="Option B" />
-        </div>
-        <div class="option-edit-row">
-          <input type="radio" name="q${state.questionCount}_correct" value="2" />
-          <input type="text" class="form-control" placeholder="Option C" />
-        </div>
+        ${optionsHtml}
       </div>
       <div class="field-group">
         <label class="field-label-sm">Custom Hint / Teacher Explanation for Learners</label>
-        <input type="text" class="form-control input-sm" placeholder="Provide an explanation for students..." />
+        <input type="text" class="form-control input-sm" placeholder="Provide an explanation for students..." value="${escapeHtml(q.hint || '')}" />
       </div>
     `;
 
-    questionsListContainer?.appendChild(card);
     bindQuestionCardEvents(card);
+    return card;
+  }
+
+  function saveQuizDraft() {
+    const draft = {
+      title: customQuizTitleInput?.value || '',
+      type: quizTypeSelect?.value || 'quiz',
+      passScore: parseInt(quizPassScoreInput?.value || '80', 10),
+      timeLimit: parseInt(quizTimeLimitInput?.value || '15', 10),
+      attempts: parseInt(quizAttemptsInput?.value || '3', 10),
+      questions: serializeQuestions()
+    };
+    try {
+      localStorage.setItem(STORAGE_KEYS.QUIZ_DRAFT, JSON.stringify(draft));
+    } catch (e) {}
+  }
+
+  function restoreQuizDraft() {
+    const draft = safeJSONParse(STORAGE_KEYS.QUIZ_DRAFT, DEFAULT_QUIZ);
+    if (customQuizTitleInput && draft.title) customQuizTitleInput.value = draft.title;
+    if (quizTypeSelect && draft.type) quizTypeSelect.value = draft.type;
+    if (quizPassScoreInput && draft.passScore) quizPassScoreInput.value = draft.passScore;
+    if (quizTimeLimitInput && draft.timeLimit) quizTimeLimitInput.value = draft.timeLimit;
+    if (quizAttemptsInput && draft.attempts) quizAttemptsInput.value = draft.attempts;
+
+    if (questionsListContainer && draft.questions && draft.questions.length > 0) {
+      questionsListContainer.innerHTML = '';
+      draft.questions.forEach((q, idx) => {
+        const el = createQuestionCardElement(q, idx);
+        questionsListContainer.appendChild(el);
+      });
+      state.questionCount = draft.questions.length;
+    }
+  }
+
+  [customQuizTitleInput, quizTypeSelect, quizPassScoreInput, quizTimeLimitInput, quizAttemptsInput].forEach(el => {
+    el?.addEventListener('input', () => {
+      triggerLiveAutoSave();
+    });
+    el?.addEventListener('change', () => {
+      triggerLiveAutoSave();
+    });
+  });
+
+  // Add question handler
+  btnAddQuestionItem?.addEventListener('click', () => {
+    state.questionCount++;
+    const newQ = {
+      prompt: '',
+      points: 10,
+      options: ['Option A (Correct answer)', 'Option B', 'Option C'],
+      correctIndex: 0,
+      hint: ''
+    };
+
+    const card = createQuestionCardElement(newQ, state.questionCount - 1);
+    questionsListContainer?.appendChild(card);
     renumberQuestions();
     card.querySelector('.q-prompt-input')?.focus();
-    showToast(`Added Question ${num}!`);
+    saveQuizDraft();
+    showToast(`Added Question ${String(state.questionCount).padStart(2, '0')}!`);
+    triggerLiveAutoSave();
   });
 
   // Publish activity handler
@@ -1592,28 +1209,76 @@ Respond ONLY with valid JSON in this exact structure:
     }
 
     const type = quizTypeSelect?.options[quizTypeSelect.selectedIndex]?.text || 'Quiz';
-    const totalQuestions = questionsListContainer?.querySelectorAll('.question-builder-card').length || 0;
-    const attachedNotice = state.attachedQuizFile ? ` with file "${state.attachedQuizFile.name}"` : '';
+    const questions = serializeQuestions();
+    const publishedRecord = {
+      id: `quiz-${Date.now()}`,
+      title,
+      type,
+      portalTag: state.activePortal.tag,
+      questionsCount: questions.length,
+      publishedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    };
 
-    showToast(`Activity "${title}" (${totalQuestions} Questions)${attachedNotice} published to portal ${state.activePortal.tag}!`);
+    // Update portal quizzes count in state
+    const foundPortal = state.portals.find(p => p.tag === state.activePortal.tag);
+    if (foundPortal) {
+      foundPortal.quizzes = (foundPortal.quizzes || 0) + 1;
+    }
+
+    state.quizzes.unshift(publishedRecord);
+    persistAllState();
+    saveQuizDraft();
+    renderPortalsGrid();
+
+    showToast(`Activity "${title}" (${questions.length} Questions) published & saved!`);
 
     // Record audit event
     recordActivityEvent({
       studentName: 'Harsh Vardhan (Instructor)',
       studentId: '#FACULTY-01',
-      materialName: state.attachedQuizFile ? `Published Quiz: ${title} [File: ${state.attachedQuizFile.name}]` : `Published Quiz: ${title}`,
+      materialName: `Published Quiz: ${title}`,
       action: 'Quiz Published',
       actionClass: 'open',
       statusPill: 'Active Now'
     });
 
-    // Persist to SQLite quizzes table
-    addSqlQuiz({
-      portalTag: state.activePortal.tag,
-      title,
-      type,
-      deadline: 'Upcoming'
-    }).catch(e => console.warn('[SQLite] addQuiz error:', e));
+    triggerLiveAutoSave();
+  });
+
+  // =========================================================================
+  // FORM DRAFTS LIVE AUTOSAVE & RESTORATION
+  // =========================================================================
+  function saveFormDrafts() {
+    const drafts = {
+      portalTitle: newPortalTitleInput?.value || '',
+      portalCohort: newPortalCohortInput?.value || '',
+      materialTitle: materialTitleInput?.value || '',
+      materialCategory: materialCategorySelect?.value || 'Study Guide',
+      materialDesc: materialDescInput?.value || '',
+      allowDownload: checkAllowDownload ? checkAllowDownload.checked : true
+    };
+    try {
+      localStorage.setItem(STORAGE_KEYS.FORM_DRAFTS, JSON.stringify(drafts));
+    } catch (e) {}
+  }
+
+  function restoreFormDrafts() {
+    const drafts = safeJSONParse(STORAGE_KEYS.FORM_DRAFTS, null);
+    if (!drafts) return;
+    if (drafts.portalTitle && newPortalTitleInput) newPortalTitleInput.value = drafts.portalTitle;
+    if (drafts.portalCohort && newPortalCohortInput) {
+      newPortalCohortInput.value = drafts.portalCohort;
+      updateLiveTagDisplay();
+    }
+    if (drafts.materialTitle && materialTitleInput) materialTitleInput.value = drafts.materialTitle;
+    if (drafts.materialCategory && materialCategorySelect) materialCategorySelect.value = drafts.materialCategory;
+    if (drafts.materialDesc && materialDescInput) materialDescInput.value = drafts.materialDesc;
+    if (drafts.allowDownload !== undefined && checkAllowDownload) checkAllowDownload.checked = drafts.allowDownload;
+  }
+
+  [materialTitleInput, materialCategorySelect, materialDescInput, checkAllowDownload].forEach(el => {
+    el?.addEventListener('input', triggerLiveAutoSave);
+    el?.addEventListener('change', triggerLiveAutoSave);
   });
 
   // =========================================================================
@@ -1622,7 +1287,6 @@ Respond ONLY with valid JSON in this exact structure:
   const btnPrintRecordSheet = document.getElementById('btnPrintRecordSheet');
   const printReportDate = document.getElementById('printReportDate');
 
-  // Format today's date for official academic report
   if (printReportDate) {
     const today = new Date();
     printReportDate.textContent = today.toLocaleDateString('en-US', {
@@ -1639,7 +1303,9 @@ Respond ONLY with valid JSON in this exact structure:
     }, 300);
   });
 
-  // User Profile Dropdown
+  // =========================================================================
+  // USER PROFILE & ACCOUNT MANAGEMENT
+  // =========================================================================
   const userProfileBtn = document.getElementById('userProfileBtn');
   const userPanel = document.getElementById('userPanel');
   userProfileBtn?.addEventListener('click', (e) => {
@@ -1651,17 +1317,33 @@ Respond ONLY with valid JSON in this exact structure:
     userPanel?.classList.remove('show');
   });
 
+  // Reset Studio Data (Restores initial state cleanly)
+  document.getElementById('btnResetStudioData')?.addEventListener('click', () => {
+    if (confirm('Reset Studio data to defaults? Any custom portals, materials, or questions will be re-initialized.')) {
+      localStorage.removeItem(STORAGE_KEYS.PORTALS);
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_PORTAL);
+      localStorage.removeItem(STORAGE_KEYS.MATERIALS);
+      localStorage.removeItem(STORAGE_KEYS.ACTIVITIES);
+      localStorage.removeItem(STORAGE_KEYS.METRICS);
+      localStorage.removeItem(STORAGE_KEYS.QUIZ_DRAFT);
+      localStorage.removeItem(STORAGE_KEYS.QUIZZES_PUBLISHED);
+      localStorage.removeItem(STORAGE_KEYS.FORM_DRAFTS);
+      localStorage.removeItem(STORAGE_KEYS.ACTIVE_VIEW);
+      window.location.reload();
+    }
+  });
+
   // Synchronize User & Role
   try {
-    const rawUser = localStorage.getItem('blendify_auth_user');
-    const savedRole = localStorage.getItem('blendify_role');
+    const rawUser = localStorage.getItem(STORAGE_KEYS.USER);
+    const savedRole = localStorage.getItem(STORAGE_KEYS.ROLE);
 
     if (!rawUser || !savedRole) {
+      try { sessionStorage.setItem('blendify_redirect_target', 'create-course.html'); } catch (e) {}
       window.location.replace('login.html');
       return;
     }
 
-    // If account role is student, redirect to student portal
     if (savedRole === 'student') {
       window.location.replace('index.html');
       return;
@@ -1683,19 +1365,31 @@ Respond ONLY with valid JSON in this exact structure:
     }
   } catch (e) {}
 
-  document.getElementById('btnExportSqliteDb')?.addEventListener('click', () => {
-    downloadDatabaseFile('blendify.sqlite');
-    showToast('Exporting SQLite Database (blendify.sqlite)...');
-  });
-
-  const handleTeacherSignOutOrSwitch = () => {
-    localStorage.removeItem('blendify_auth_user');
-    localStorage.removeItem('blendify_role');
+  function handleSignOutOrSwitch() {
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.ROLE);
     window.location.href = 'login.html';
-  };
+  }
 
-  document.getElementById('btnSignOutAccount')?.addEventListener('click', handleTeacherSignOutOrSwitch);
-  document.getElementById('btnSwitchAccountDropdown')?.addEventListener('click', handleTeacherSignOutOrSwitch);
+  document.getElementById('btnSignOutAccount')?.addEventListener('click', handleSignOutOrSwitch);
+  document.getElementById('btnSwitchAccountDropdown')?.addEventListener('click', handleSignOutOrSwitch);
 
-  console.log('Blendify Teacher & Administrator Studio initialized.');
+  // =========================================================================
+  // BOOTSTRAP: RESTORE ALL PROCESS DATA ON PAGE LOAD
+  // =========================================================================
+  renderPortalsGrid();
+  setActivePortal(state.activePortal.tag, state.activePortal.name, state.activePortal.cohort);
+  renderMaterialsTable();
+  renderActivityTable();
+  restoreQuizDraft();
+  restoreFormDrafts();
+
+  // Restore the exact panel view the instructor was working on
+  if (state.activeView && panels[state.activeView]) {
+    switchView(state.activeView);
+  }
+
+  updateAutoSaveIndicator('saved', 'All progress saved');
+
+  console.log('[Blendify] Teacher & Administrator Studio initialized with full persistence.');
 });

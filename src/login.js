@@ -537,12 +537,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         showToast(`Welcome back, ${user.name}!`);
 
+        const targetUrl = (function() {
+          try {
+            const t = sessionStorage.getItem('blendify_redirect_target');
+            if (t) {
+              sessionStorage.removeItem('blendify_redirect_target');
+              if (existingRole === 'teacher' && t.includes('create-course')) return 'create-course.html';
+              if (existingRole === 'student' && t.includes('index')) return 'index.html';
+            }
+          } catch(e) {}
+          return existingRole === 'student' ? 'index.html' : 'create-course.html';
+        })();
+
         setTimeout(() => {
-          if (existingRole === 'student') {
-            window.location.href = 'index.html';
-          } else {
-            window.location.href = 'create-course.html';
-          }
+          window.location.href = targetUrl;
         }, 350);
       } else {
         // FIRST-TIME VISIT FOR THIS ACCOUNT:

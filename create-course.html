@@ -17,7 +17,8 @@
         var savedRole = localStorage.getItem('blendify_role');
         var rawUser = localStorage.getItem('blendify_auth_user');
         if (!savedRole || !rawUser) {
-          // First-time visit: redirect to login screen
+          // First-time visit or direct link: save intended destination
+          try { sessionStorage.setItem('blendify_redirect_target', 'create-course.html'); } catch(e) {}
           window.location.replace('login.html');
         } else if (savedRole === 'student') {
           // Student choice saved: redirect to student portal
@@ -108,6 +109,20 @@
           <button class="mobile-toggle" id="sidebarToggle" aria-label="Toggle navigation menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
           </button>
+
+          <!-- Auto-save Live Indicator -->
+          <div class="auto-save-pill" id="autoSaveIndicator" title="All actions and course creation steps are automatically saved to local storage">
+            <span class="save-status-dot"></span>
+            <span class="save-status-text">All progress saved</span>
+          </div>
+
+          <!-- Active Portal Switcher -->
+          <div class="portal-switcher-pill" title="Currently selected active classroom portal">
+            <span class="pill-label">Portal:</span>
+            <select id="headerPortalSelect" class="portal-select-dropdown" aria-label="Active Classroom Portal">
+              <!-- Dynamically populated from saved portals state -->
+            </select>
+          </div>
         </div>
 
         <div class="header-right">
@@ -131,7 +146,13 @@
                 <div class="user-panel-role">Instructor · Teacher &amp; Admin Studio</div>
               </div>
               <hr class="panel-divider" style="border: none; border-top: 1px solid #E4E7ED; margin: 6px 0;" />
-
+              <button class="panel-item" id="btnResetStudioData" style="color: #6B7280;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                </svg>
+                Reset Demo Data
+              </button>
               <button class="panel-item" id="btnSwitchAccountDropdown">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -172,12 +193,12 @@
             <h3 class="card-heading">Create a New Classroom Workspace</h3>
             <div class="portal-create-grid">
               <div class="field-group">
-                <label class="field-label" for="newPortalTitleInput">Classroom / Workspace Name</label>
+                <label class="field-label">Classroom / Workspace Name</label>
                 <input type="text" class="form-control" id="newPortalTitleInput" placeholder="e.g. UI/UX Cohort 5 — Advanced Responsive Breakpoints" />
               </div>
 
               <div class="field-group">
-                <label class="field-label" for="newPortalCohortInput">Subject &amp; Cohort Code</label>
+                <label class="field-label">Subject &amp; Cohort Code</label>
                 <input type="text" class="form-control" id="newPortalCohortInput" placeholder="e.g. FIGMA-WEBFLOW-2026" />
               </div>
             </div>
@@ -287,12 +308,12 @@
             
             <div class="upload-form-grid">
               <div class="field-group">
-                <label class="field-label" for="materialTitleInput">Material Title</label>
+                <label class="field-label">Material Title</label>
                 <input type="text" class="form-control" id="materialTitleInput" placeholder="e.g. Module 2.3: Fluid Grid Breakpoints Cheatsheet" />
               </div>
 
               <div class="field-group">
-                <label class="field-label" for="materialCategorySelect">Resource Category</label>
+                <label class="field-label">Resource Category</label>
                 <select class="form-control" id="materialCategorySelect">
                   <option value="Figma Kit">Figma UI Kit &amp; Tokens (.fig)</option>
                   <option value="Study Guide">Educational Reading Guide (PDF)</option>
@@ -311,18 +332,18 @@
                 <h4 id="fileDropLabel">Choose a file or drag &amp; drop here</h4>
                 <p>Supported: .fig, .pdf, .zip, .html, .png, .mp4 (Up to 100 MB)</p>
                 <label class="btn-secondary-sm" for="portalMaterialFileInput">Browse Files</label>
-                <input type="file" id="portalMaterialFileInput" class="visually-hidden" aria-label="Upload resource file" />
+                <input type="file" id="portalMaterialFileInput" class="visually-hidden" />
               </div>
             </div>
 
             <div class="field-group">
-              <label class="field-label" for="materialDescInput">Brief Educational Description &amp; Instructions</label>
+              <label class="field-label">Brief Educational Description &amp; Instructions</label>
               <textarea class="form-control" id="materialDescInput" rows="3" placeholder="Provide instructions for learners studying this material..."></textarea>
             </div>
 
             <div class="card-footer-between">
-              <label class="checkbox-toggle-lbl" for="checkAllowDownload">
-                <input type="checkbox" id="checkAllowDownload" checked aria-label="Allow students to download raw asset file" />
+              <label class="checkbox-toggle-lbl">
+                <input type="checkbox" id="checkAllowDownload" checked />
                 <span>Allow students to download raw asset file</span>
               </label>
               <button class="btn-primary" id="btnPublishMaterialToPortal">Upload to Portal</button>
@@ -435,7 +456,7 @@
             <div class="card-header-between">
               <h3 class="card-heading">Live In-Time Access Feed</h3>
               <div class="search-filter-wrap">
-                <input type="text" id="activitySearchInput" placeholder="Filter by student or material..." class="search-sm" aria-label="Filter by student or material" />
+                <input type="text" id="activitySearchInput" placeholder="Filter by student or material..." class="search-sm" />
               </div>
             </div>
 
@@ -569,78 +590,15 @@
 
           <!-- Quiz Creator Card -->
           <div class="card-box">
-            <div class="card-header-between" style="margin-bottom: 14px;">
-              <h3 class="card-heading" style="margin-bottom: 0;">Activity &amp; Quiz Configuration</h3>
-              <span class="badge-accent-gold" style="font-size: 0.74rem; padding: 4px 10px; border-radius: 6px; background: rgba(197, 154, 83, 0.12); color: var(--primary); font-weight: 600;">Manual or File Import</span>
-            </div>
-
-            <!-- DRAG & DROP AND BROWSE EXISTING QUIZ OR TEST FILE -->
-            <div class="quiz-import-section">
-              <div class="file-drop-card quiz-file-drop-card" id="quizFileDropCard">
-                <div class="file-drop-content" id="quizDropContent">
-                  <div class="file-icon-cloud">
-                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#C59A53" stroke-width="1.8">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                      <polyline points="14 2 14 8 20 8"></polyline>
-                      <line x1="12" y1="18" x2="12" y2="12"></line>
-                      <polyline points="9 15 12 12 15 15"></polyline>
-                    </svg>
-                  </div>
-                  <h4 id="quizFileDropLabel">Drag &amp; drop an existing Quiz or Test file here</h4>
-                  <p id="quizFileDropSub">Supported formats: <strong>.json, .csv, .txt, .pdf, .docx, .zip</strong> (Auto-parses question banks or attaches assessment file)</p>
-                  <div class="quiz-file-actions">
-                    <label class="btn-secondary-sm" for="quizFileInput">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      <span>Browse Quiz Files</span>
-                    </label>
-                    <input type="file" id="quizFileInput" class="visually-hidden" accept=".json,.csv,.txt,.pdf,.docx,.doc,.zip" aria-label="Browse existing quiz or test file" />
-                  </div>
-                </div>
-
-                <!-- AI Processing Progress Bar -->
-                <div class="ai-processing-state" id="aiQuizProcessingState" style="display: none;">
-                  <div class="ai-spinner-sparkle"></div>
-                  <div>
-                    <strong style="font-size: 0.88rem; color: var(--text-main);">Blendify AI Analyzing Quiz Document...</strong>
-                    <p style="font-size: 0.76rem; color: var(--text-muted); margin: 3px 0 0;">Extracting questions, identifying options, detecting answer keys &amp; checking for errors.</p>
-                  </div>
-                </div>
-
-                <!-- Attached File Status Preview (Shows when file is dropped/chosen) -->
-                <div class="quiz-attached-preview" id="quizAttachedPreview" style="display: none;">
-                  <div class="attached-file-info">
-                    <span class="file-badge vector-badge">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <path d="M9 15h6"></path><path d="M9 11h6"></path>
-                      </svg>
-                    </span>
-                    <div class="attached-file-text">
-                      <strong id="attachedFileName">quiz_file.json</strong>
-                      <span id="attachedFileSize">18.4 KB · Ready for assessment</span>
-                    </div>
-                  </div>
-                  <div class="attached-actions">
-                    <span class="status-pill open" id="attachedStatusPill">Loaded</span>
-                    <button type="button" class="btn-ghost-xs text-danger" id="btnRemoveQuizFile" title="Remove attached file">Remove</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+            <h3 class="card-heading">Activity &amp; Quiz Configuration</h3>
             <div class="form-row-2">
               <div class="field-group">
-                <label class="field-label" for="customQuizTitleInput">Quiz / Activity Title</label>
+                <label class="field-label">Quiz / Activity Title</label>
                 <input type="text" class="form-control" id="customQuizTitleInput" placeholder="e.g. Module 2: Auto Layout Constraints &amp; Breakpoints Assessment" value="Module 2: Auto Layout Constraints &amp; Breakpoints Assessment" />
               </div>
 
               <div class="field-group">
-                <label class="field-label" for="quizTypeSelect">Activity Type</label>
+                <label class="field-label">Activity Type</label>
                 <select class="form-control" id="quizTypeSelect">
                   <option value="quiz">Interactive Multiple-Choice Quiz</option>
                   <option value="project">Practical Project &amp; File Submission</option>
@@ -651,50 +609,16 @@
 
             <div class="form-row-3">
               <div class="field-group">
-                <label class="field-label" for="quizPassScoreInput">Passing Score (%)</label>
+                <label class="field-label">Passing Score (%)</label>
                 <input type="number" class="form-control" id="quizPassScoreInput" value="80" min="50" max="100" />
               </div>
               <div class="field-group">
-                <label class="field-label" for="quizTimeLimitInput">Time Limit (Minutes)</label>
+                <label class="field-label">Time Limit (Minutes)</label>
                 <input type="number" class="form-control" id="quizTimeLimitInput" value="15" min="5" max="120" />
               </div>
               <div class="field-group">
-                <label class="field-label" for="quizAttemptsInput">Max Attempts Allowed</label>
+                <label class="field-label">Max Attempts Allowed</label>
                 <input type="number" class="form-control" id="quizAttemptsInput" value="3" min="1" max="10" />
-              </div>
-            </div>
-
-            <!-- AI QUIZ & ANSWER KEY AUDIT REPORT -->
-            <div class="ai-quiz-audit-panel" id="aiQuizAuditPanel" style="display: none;">
-              <div class="audit-header-row">
-                <div class="audit-badge-wrap">
-                  <span class="ai-sparkle-pill">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-                    </svg>
-                    Blendify AI Quiz Inspector
-                  </span>
-                  <span class="audit-status-badge" id="auditStatusBadge">Verified</span>
-                </div>
-                <div class="audit-stats-summary" id="auditStatsSummary">
-                  <span class="stat-pill success" id="auditCountValid">0 Questions Ready</span>
-                  <span class="stat-pill warning" id="auditCountWarnings" style="display: none;">0 Warnings</span>
-                  <span class="stat-pill danger" id="auditCountErrors" style="display: none;">0 Errors</span>
-                </div>
-              </div>
-
-              <div class="audit-body">
-                <div class="audit-message-text" id="auditMessageText">
-                  AI successfully parsed and mapped questions and answer keys into the builder below. You can edit any question or change the answer key before publishing.
-                </div>
-                <ul class="audit-findings-list" id="auditFindingsList">
-                  <!-- Populated dynamically with findings / warnings / checks -->
-                </ul>
-              </div>
-
-              <div class="audit-footer-actions">
-                <span class="audit-help-tip">Review each question card below to adjust wording, points, or correct answer radio buttons.</span>
-                <button type="button" class="btn-ghost-xs" id="btnDismissAuditPanel">Dismiss Inspection</button>
               </div>
             </div>
 
@@ -711,32 +635,32 @@
                   <div class="q-header-bar">
                     <strong>Question 01</strong>
                     <div class="q-points-wrap">
-                      <label for="q1_points_input">Points:</label>
-                      <input type="number" id="q1_points_input" name="q1_points" value="10" class="points-input" aria-label="Question 1 points" />
+                      <span>Points:</span>
+                      <input type="number" value="10" class="points-input" />
                       <button class="btn-ghost-xs text-danger btn-delete-question">Remove</button>
                     </div>
                   </div>
                   <div class="field-group">
-                    <input type="text" class="form-control q-prompt-input" name="q1_prompt" aria-label="Question 1 prompt" placeholder="Enter question prompt..." value="In Figma Auto-Layout, what constraint behavior causes a frame to expand to 100% of its parent container width?" />
+                    <input type="text" class="form-control q-prompt-input" placeholder="Enter question prompt..." value="In Figma Auto-Layout, what constraint behavior causes a frame to expand to 100% of its parent container width?" />
                   </div>
                   <div class="options-radio-list">
                     <div class="option-edit-row">
-                      <input type="radio" name="q1_correct" value="0" aria-label="Option 1 is correct" />
-                      <input type="text" class="form-control" name="q1_opt_0" aria-label="Option 1 choice text" value="Hug contents" />
+                      <input type="radio" name="q1_correct" value="0" />
+                      <input type="text" class="form-control" value="Hug contents" />
                     </div>
                     <div class="option-edit-row">
-                      <input type="radio" name="q1_correct" value="1" checked aria-label="Option 2 is correct" />
-                      <input type="text" class="form-control" name="q1_opt_1" aria-label="Option 2 choice text" value="Fill container (width: 100%)" />
+                      <input type="radio" name="q1_correct" value="1" checked />
+                      <input type="text" class="form-control" value="Fill container (width: 100%)" />
                       <span class="correct-badge">Correct Answer</span>
                     </div>
                     <div class="option-edit-row">
-                      <input type="radio" name="q1_correct" value="2" aria-label="Option 3 is correct" />
-                      <input type="text" class="form-control" name="q1_opt_2" aria-label="Option 3 choice text" value="Fixed width: 375px" />
+                      <input type="radio" name="q1_correct" value="2" />
+                      <input type="text" class="form-control" value="Fixed width: 375px" />
                     </div>
                   </div>
                   <div class="field-group">
-                    <label class="field-label-sm" for="q1_hint_input">Custom Hint / Teacher Explanation for Learners</label>
-                    <input type="text" class="form-control input-sm" id="q1_hint_input" name="q1_hint" placeholder="e.g. Fill tells the element to stretch across all available space." value="Fill container is the equivalent of width: 100% in CSS flexbox." />
+                    <label class="field-label-sm">Custom Hint / Teacher Explanation for Learners</label>
+                    <input type="text" class="form-control input-sm" placeholder="e.g. Fill tells the element to stretch across all available space." value="Fill container is the equivalent of width: 100% in CSS flexbox." />
                   </div>
                 </div>
 
@@ -745,32 +669,32 @@
                   <div class="q-header-bar">
                     <strong>Question 02</strong>
                     <div class="q-points-wrap">
-                      <label for="q2_points_input">Points:</label>
-                      <input type="number" id="q2_points_input" name="q2_points" value="10" class="points-input" aria-label="Question 2 points" />
+                      <span>Points:</span>
+                      <input type="number" value="10" class="points-input" />
                       <button class="btn-ghost-xs text-danger btn-delete-question">Remove</button>
                     </div>
                   </div>
                   <div class="field-group">
-                    <input type="text" class="form-control q-prompt-input" name="q2_prompt" aria-label="Question 2 prompt" placeholder="Enter question prompt..." value="Why should Webflow web designers use rem units over hardcoded pixels for typography?" />
+                    <input type="text" class="form-control q-prompt-input" placeholder="Enter question prompt..." value="Why should Webflow web designers use rem units over hardcoded pixels for typography?" />
                   </div>
                   <div class="options-radio-list">
                     <div class="option-edit-row">
-                      <input type="radio" name="q2_correct" value="0" checked aria-label="Option 1 is correct" />
-                      <input type="text" class="form-control" name="q2_opt_0" aria-label="Option 1 choice text" value="Rem units scale proportionately with the user's browser accessibility settings" />
+                      <input type="radio" name="q2_correct" value="0" checked />
+                      <input type="text" class="form-control" value="Rem units scale proportionately with the user's browser accessibility settings" />
                       <span class="correct-badge">Correct Answer</span>
                     </div>
                     <div class="option-edit-row">
-                      <input type="radio" name="q2_correct" value="1" aria-label="Option 2 is correct" />
-                      <input type="text" class="form-control" name="q2_opt_1" aria-label="Option 2 choice text" value="Pixels load faster in CSS rendering engines" />
+                      <input type="radio" name="q2_correct" value="1" />
+                      <input type="text" class="form-control" value="Pixels load faster in CSS rendering engines" />
                     </div>
                     <div class="option-edit-row">
-                      <input type="radio" name="q2_correct" value="2" aria-label="Option 3 is correct" />
-                      <input type="text" class="form-control" name="q2_opt_2" aria-label="Option 3 choice text" value="Rem units prevent font loading on mobile" />
+                      <input type="radio" name="q2_correct" value="2" />
+                      <input type="text" class="form-control" value="Rem units prevent font loading on mobile" />
                     </div>
                   </div>
                   <div class="field-group">
-                    <label class="field-label-sm" for="q2_hint_input">Custom Hint / Teacher Explanation for Learners</label>
-                    <input type="text" class="form-control input-sm" id="q2_hint_input" name="q2_hint" value="Rem units honor user-defined browser font sizes, ensuring accessible digital experiences." />
+                    <label class="field-label-sm">Custom Hint / Teacher Explanation for Learners</label>
+                    <input type="text" class="form-control input-sm" value="Rem units honor user-defined browser font sizes, ensuring accessible digital experiences." />
                   </div>
                 </div>
               </div>
