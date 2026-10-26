@@ -17,6 +17,8 @@ import {
   formatMarkdown,
   DEFAULT_MODEL
 } from './gemini.js';
+import { supabaseSignOut } from './supabase.js';
+import { firebaseSignOut } from './firebase.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
@@ -1836,7 +1838,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   } catch (e) {}
 
-  function handleSignOutOrSwitch() {
+  async function handleSignOutOrSwitch() {
+    try {
+      await Promise.allSettled([
+        supabaseSignOut(),
+        firebaseSignOut()
+      ]);
+    } catch (e) {
+      console.warn('[Blendify] Sign-out error:', e);
+    }
     localStorage.removeItem('blendify_auth_user');
     localStorage.removeItem('blendify_role');
     window.location.href = 'login.html';

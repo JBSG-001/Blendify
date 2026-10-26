@@ -107,7 +107,8 @@ export function getSupabaseStatus() {
 }
 
 // ============================================================================
-// AUTHENTICATION
+// ============================================================================
+// AUTHENTICATION & SECURITY
 // ============================================================================
 
 /**
@@ -124,42 +125,48 @@ export async function supabaseSignUp(email, password, displayName, role = 'stude
   }
 
   try {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanRole = ['teacher', 'admin'].includes(role) ? role : 'student';
+
     const { data, error } = await client.auth.signUp({
-      email: email.trim(),
+      email: cleanEmail,
       password,
       options: {
         data: {
           display_name: displayName,
-          role: role
+          role: cleanRole
         }
       }
     });
 
     if (error) throw error;
 
-    // Synchronize to public users table if configured
-    if (data.user) {
+    const requiresConfirmation = !data.session && Boolean(data.user);
+
+    // If an active session was created, sync profile directly as well (database trigger also handles this via SECURITY DEFINER)
+    if (data.user && data.session) {
       try {
         await client.from('users').upsert({
           id: data.user.id,
-          email: email.trim().toLowerCase(),
+          email: cleanEmail,
           name: displayName,
-          role: role,
+          role: cleanRole,
           updated_at: new Date().toISOString()
         });
       } catch (dbErr) {
-        console.warn('[Supabase users table upsert warning]', dbErr);
+        console.warn('[Supabase users table sync note]', dbErr?.message || dbErr);
       }
     }
 
     return {
       success: true,
       configured: true,
+      requiresConfirmation,
       user: {
         id: data.user?.id,
-        email: data.user?.email,
+        email: data.user?.email || cleanEmail,
         name: displayName,
-        role: role
+        role: cleanRole
       },
       session: data.session
     };
@@ -188,15 +195,16 @@ export async function supabaseSignIn(email, password) {
   }
 
   try {
+    const cleanEmail = email.trim().toLowerCase();
     const { data, error } = await client.auth.signInWithPassword({
-      email: email.trim(),
+      email: cleanEmail,
       password
     });
 
     if (error) throw error;
 
     let role = data.user?.user_metadata?.role || 'student';
-    let name = data.user?.user_metadata?.display_name || email.split('@')[0];
+    let name = data.user?.user_metadata?.display_name || cleanEmail.split('@')[0];
 
     // Attempt to read custom profile from users table
     try {
@@ -211,7 +219,7 @@ export async function supabaseSignIn(email, password) {
         if (profile.name) name = profile.name;
       }
     } catch (e) {
-      console.warn('[Supabase profile fetch warning]', e);
+      console.warn('[Supabase profile fetch warning]', e?.message || e);
     }
 
     return {
@@ -219,7 +227,7 @@ export async function supabaseSignIn(email, password) {
       configured: true,
       user: {
         id: data.user?.id,
-        email: data.user?.email,
+        email: data.user?.email || cleanEmail,
         name,
         role
       },
@@ -237,17 +245,32 @@ export async function supabaseSignIn(email, password) {
 }
 
 /**
- * Sign out from Supabase
+ * Sign out from Supabase (revokes active session & clears auth tokens)
  */
 export async function supabaseSignOut() {
   const client = getSupabaseClient();
   if (client) {
     try {
       await client.auth.signOut();
+      console.log('[Blendify Supabase] Signed out successfully.');
     } catch (e) {
-      console.warn('[Blendify Supabase] Sign-out error:', e);
+      console.warn('[Blendify Supabase] Sign-out error:', e?.message || e);
     }
   }
+}
+
+/**
+ * Subscribe to Supabase auth state changes (login, logout, token refresh)
+ */
+export function onSupabaseAuthStateChange(callback) {
+  const client = getSupabaseClient();
+  if (!client) return { unsubscribe: () => {} };
+  const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+    if (typeof callback === 'function') {
+      callback(event, session);
+    }
+  });
+  return subscription;
 }
 
 /**

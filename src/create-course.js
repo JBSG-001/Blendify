@@ -13,6 +13,9 @@
  * to localStorage. Everything is restored seamlessly whenever the website is opened.
  */
 
+import { supabaseSignOut } from './supabase.js';
+import { firebaseSignOut } from './firebase.js';
+
 document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // STORAGE KEYS & CONSTANTS
@@ -1367,7 +1370,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   } catch (e) {}
 
-  function handleTeacherSignOutOrSwitch() {
+  async function handleTeacherSignOutOrSwitch() {
+    try {
+      await Promise.allSettled([
+        supabaseSignOut(),
+        firebaseSignOut()
+      ]);
+    } catch (e) {
+      console.warn('[Blendify] Sign-out error:', e);
+    }
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.ROLE);
     window.location.href = 'login.html';

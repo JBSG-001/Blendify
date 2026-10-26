@@ -650,6 +650,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             remember: checkRememberMe ? checkRememberMe.checked : true
           });
           return;
+        } else if (sbAuth.message?.includes('Email not confirmed')) {
+          showAuthError('Email Not Confirmed', 'Please check your inbox and click the verification link before logging in.', 'email');
+          return;
         } else if (sbAuth.code === 400 || sbAuth.message?.includes('Invalid login credentials')) {
           showAuthError('Incorrect Password', 'The credentials you entered do not match our Supabase records.', 'password');
           return;
@@ -769,12 +772,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 2. Save user to Supabase Authentication & PostgreSQL users table if configured
       let cloudNotice = '';
+      let requiresEmailVerification = false;
       if (isSupabaseConfigured()) {
         try {
           const sbResult = await supabaseSignUp(email, password, name, role);
           if (sbResult.success) {
             cloudNotice += ' & Supabase';
+            if (sbResult.requiresConfirmation) {
+              requiresEmailVerification = true;
+            }
             console.log('[Supabase] User registered successfully:', sbResult.user);
+          } else if (sbResult.message?.toLowerCase().includes('already registered')) {
+            if (authLoadingOverlay) authLoadingOverlay.style.display = 'none';
+            showAuthError('Email Already Registered', 'An account with this email already exists in Supabase. Please sign in instead.', 'signup-email');
+            return;
           }
         } catch (sbErr) {
           console.warn('[Supabase] Registration notice:', sbErr);
@@ -796,7 +807,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (authLoadingOverlay) authLoadingOverlay.style.display = 'none';
 
-      showToast(`Account successfully created in SQLite${cloudNotice}! Welcome, ${name}!`);
+      if (requiresEmailVerification) {
+        showToast(`Account created in SQLite${cloudNotice}! Please verify your email from Supabase to complete cloud login.`);
+      } else {
+        showToast(`Account successfully created in SQLite${cloudNotice}! Welcome, ${name}!`);
+      }
 
       // Set user session
       const newUser = { name, email, role };
