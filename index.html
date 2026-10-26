@@ -100,7 +100,7 @@
             </button>
           </li>
 
-          <!-- 4. Personalized AI Agents -->
+          <!-- 4. Personalized AI Agents (Blipp) -->
           <li class="nav-item">
             <button class="nav-link" data-view="ai-agent" id="nav-ai-agent">
               <span class="nav-icon ai-sparkle-icon">
@@ -111,7 +111,7 @@
                   </path>
                 </svg>
               </span>
-              <span class="nav-label">AI Learning Agent</span>
+              <span class="nav-label">Blipp AI Assistant</span>
               <span class="badge-ai-pill">Active</span>
             </button>
           </li>
@@ -139,7 +139,6 @@
               <div class="user-panel-role">Student · Blendify Pro</div>
             </div>
             <hr class="panel-divider" />
-
             <button class="panel-item" id="btnSwitchAccountDropdown">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -221,7 +220,7 @@
                   <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
                 </svg>
               </span>
-              <span class="nav-label">AI Learning Agent</span>
+              <span class="nav-label">Blipp AI Assistant</span>
             </button>
           </li>
         </ul>
@@ -261,7 +260,7 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
-                  <input type="text" id="searchCommunityMaterialsInput" placeholder="Search learning materials from user uploads (e.g. Figma wireframes, CSS cheat sheets, study notes)..." autocomplete="off" aria-label="Search learning materials" />
+                  <input type="text" id="searchCommunityMaterialsInput" placeholder="Search learning materials from user uploads (e.g. Figma wireframes, CSS cheat sheets, study notes)..." autocomplete="off" />
                   <button type="button" class="btn-clear-search" id="btnClearMaterialSearch" title="Clear search" style="display:none;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   </button>
@@ -368,7 +367,24 @@
            VIEW 2: CLASSROOM PORTALS (JOIN BY TAG & JOINED CLASSES LIST)
            =================================================================== -->
       <section class="page-content view-hidden" id="viewWorkplaces">
+        <!-- CLASSROOM WORKPLACES HERO BANNER -->
+        <section class="hero-banner" id="portalHeroBanner">
+          <div class="hero-container">
+            <div class="hero-top-meta">
+              <span class="instructor-credit" id="portalInstructorCredit">
+                Vativa Hub · UI/UX Design
+              </span>
+            </div>
 
+            <h1 class="course-main-title" id="portalHeroTitle">
+              UI/UX Cohort 4 — Webflow Breakpoints Lab
+            </h1>
+
+            <p class="hero-intro-description" id="portalHeroDesc">
+              Active Portal: <strong id="portalHeroTag">#PORTAL-FIGMA-101</strong> · Study hands-on curriculum materials, explore responsive device models, and download starter assets directly to your computer.
+            </p>
+          </div>
+        </section>
 
         <div class="workplaces-container">
           <!-- Tag Join & Share Box -->
@@ -377,7 +393,7 @@
               <h3>Join a Classroom by Tag</h3>
               <p>Enter the generated portal tag provided by your instructor or peer:</p>
               <div class="tag-input-group">
-                <input type="text" class="tag-input-field" id="portalTagInput" placeholder="e.g. #PORTAL-FIGMA-101" aria-label="Classroom portal tag" />
+                <input type="text" class="tag-input-field" id="portalTagInput" placeholder="e.g. #PORTAL-FIGMA-101" />
                 <button class="btn-primary" id="btnJoinPortalByTag">Enter Portal</button>
               </div>
               <div class="preset-tags">
@@ -394,7 +410,7 @@
               <h3>Share Current Workplace Link</h3>
               <p>Invite fellow students to collaborate in your active learning portal:</p>
               <div class="share-link-group">
-                <input type="text" class="share-link-field" id="currentShareLink" readonly aria-label="Current shareable link"
+                <input type="text" class="share-link-field" id="currentShareLink" readonly
                   value="https://blendify.edu/portal/join?tag=PORTAL-FIGMA-101" />
                 <button class="btn-secondary" id="btnCopyPortalLink">
                   Copy Link
@@ -430,7 +446,7 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                   </svg>
-                  <input type="text" id="filterJoinedPortalsInput" placeholder="Filter joined portals by name or tag..." aria-label="Filter joined portals by name or tag" />
+                  <input type="text" id="filterJoinedPortalsInput" placeholder="Filter joined portals by name or tag..." />
                 </div>
               </div>
             </div>
@@ -466,7 +482,7 @@
                     <span>All Classrooms</span>
                   </button>
                   <button class="btn-ghost-sm" id="btnAskAIAboutLesson">
-                    Ask AI Agent
+                    Ask Blipp AI
                   </button>
                   <button class="btn-ghost-sm" id="btnShareToClassroom">
                     Share to Workplace
@@ -868,10 +884,20 @@
           <aside class="sidebar-column" id="sidebarRightColumn">
             <!-- SECTION 1: TOP CORNER - FILE DOWNLOADS (SAVED TO COMPUTER) -->
             <div class="sidebar-widget-card download-materials-card" id="downloadMaterialsCard">
-              <div class="widget-header download-widget-header">
+              <div class="widget-header">
                 <div class="widget-title-wrap">
-                  <h3 class="widget-heading">File Downloads</h3>
-                  <span class="widget-sub">Save to your computer</span>
+                  <div class="widget-icon download-widget-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="widget-heading">File Downloads</h3>
+                    <span class="widget-sub">Save to your computer</span>
+                  </div>
                 </div>
                 <span class="badge-count download-status-badge" id="downloadCountBadge">4 Files</span>
               </div>
@@ -932,94 +958,64 @@
       </section>
 
       <!-- ===================================================================
-           VIEW 3: PERSONALIZED AI LEARNING AGENT
+           VIEW 3: BLIPP — UNIFIED AI LEARNING COMPANION (GEMINI POWERED)
            =================================================================== -->
       <section class="page-content view-hidden" id="viewAIAgent">
         <div class="view-header-row">
           <div>
-            <h2 class="view-title">Personalized AI Learning Agents</h2>
-            <p class="view-sub">Tailored AI companions to support, guide, critique, and accelerate your educational
-              journey.</p>
-          </div>
-          <div class="ai-mode-selector">
-            <span class="selector-lbl">Active Persona:</span>
-            <div class="persona-chips">
-              <button class="persona-chip active" data-persona="alex">
-                <span>Alex</span>
-                <small>Design Mentor</small>
-              </button>
-              <button class="persona-chip" data-persona="kavita">
-                <span>Kavita</span>
-                <small>Webflow &amp; Code</small>
-              </button>
-              <button class="persona-chip" data-persona="socrates">
-                <span>Socrates</span>
-                <small>Concept Coach</small>
-              </button>
-            </div>
+            <h2 class="view-title">Blipp — Unified AI Learning Companion</h2>
+            <p class="view-sub">Powered by Google Gemini. Your all-in-one mentor merging UI design systems, Webflow code, and concept coaching.</p>
           </div>
         </div>
 
         <div class="ai-agent-workspace">
-          <!-- Left: Persona Details & Quick Prompts -->
+          <!-- Left: Blipp Profile & Quick Prompts -->
           <div class="ai-sidebar-info">
-            <div class="persona-profile-card">
-              <div class="persona-avatar-wrap" id="personaAvatar">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
-                  <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
-                  <path d="M2 2l7.586 7.586"></path>
-                  <circle cx="11" cy="11" r="2"></circle>
-                </svg>
+            <div class="persona-profile-card blipp-profile-card">
+              <div class="blipp-avatar-wrap" id="personaAvatar">
+                <div class="blipp-orb">
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                  </svg>
+                </div>
+                <span class="blipp-glow-ring"></span>
               </div>
-              <h3 id="personaName">Alex</h3>
-              <span class="persona-role" id="personaRole">Principal Design System Architect</span>
+              <h3 id="personaName">Blipp</h3>
+              <span class="persona-role" id="personaRole">Unified AI Learning Companion</span>
+              <div class="gemini-pill-tag" id="geminiModelTag">
+                <span class="gemini-sparkle">✨</span>
+                <span id="geminiModelLabel">Gemini 1.5 Flash</span>
+              </div>
               <p class="persona-bio" id="personaBio">
-                Specialized in visual hierarchy, Figma auto-layout constraints, typography scales, and translating UI
-                tokens into practical web structures.
+                Your 24/7 AI tutor on Blendify. Seamlessly combining UI design architecture, responsive Webflow &amp; CSS engineering, and Socratic concept coaching into one interactive mentor.
               </p>
+              <div class="blipp-capability-tags">
+                <span>#AutoLayout</span>
+                <span>#WebflowCSS</span>
+                <span>#DesignTokens</span>
+                <span>#RemUnits</span>
+                <span>#QuizCoach</span>
+              </div>
             </div>
 
             <div class="suggested-prompts-card">
               <h4>Suggested Educational Prompts</h4>
               <div class="prompt-chips-list" id="promptChipsList">
-                <button class="prompt-chip" data-prompt="Explain how Auto-Layout Hug vs Fill works in Figma">
+                <button class="prompt-chip" data-prompt="Explain how Auto-Layout Hug vs Fill works in Figma and Webflow">
                   How does Auto-Layout Hug vs Fill work?
                 </button>
-                <button class="prompt-chip"
-                  data-prompt="How do I translate 1440px desktop breakpoints into 768px tablet layout?">
-                  Desktop to Tablet layout transition rules
+                <button class="prompt-chip" data-prompt="How do I translate 1440px desktop wireframes into fluid Webflow flexbox?">
+                  Desktop to mobile layout rules &amp; breakpoints
                 </button>
-                <button class="prompt-chip" data-prompt="Give me a quick 3-question quiz on responsive CSS grids">
-                  Quiz me on responsive CSS grids
-                </button>
-                <button class="prompt-chip" data-prompt="What are design tokens and why should I use rem over px?">
+                <button class="prompt-chip" data-prompt="Why should I use rem units over px in modern CSS architecture?">
                   Why use rem units over px in Webflow?
                 </button>
-              </div>
-            </div>
-
-            <!-- Agent Purpose & Limitation Rules Card -->
-            <div class="ai-rules-card" id="aiRulesCard">
-              <div class="ai-rules-header">
-                <div class="ai-rules-badge">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  <span>Agent Scope &amp; Rules</span>
-                </div>
-              </div>
-              <div class="ai-rules-body">
-                <div class="ai-rules-purpose-box">
-                  <strong>Core Purpose:</strong>
-                  <p id="aiRulesPurposeText">Specialized in visual hierarchy, auto-layout, and token architecture.</p>
-                </div>
-                <div class="ai-rules-list-box">
-                  <strong>Scope Limitations:</strong>
-                  <ul id="aiRulesList" class="ai-rules-ul">
-                    <li>Strictly scoped to UI/UX, visual hierarchy, and Figma token models.</li>
-                    <li>Declines backend, SQL, and complex code; redirects code to Kavita.</li>
-                    <li>Refuses off-topic non-design questions.</li>
-                  </ul>
-                </div>
+                <button class="prompt-chip" data-prompt="Give me a quick 2-question quiz on responsive CSS grids">
+                  Quiz me on responsive CSS grids &amp; auto-layout
+                </button>
+                <button class="prompt-chip" data-prompt="Explain responsive breakpoints using a simple real-world analogy">
+                  Explain responsive layout with an analogy
+                </button>
               </div>
             </div>
           </div>
@@ -1029,25 +1025,28 @@
             <div class="ai-chat-header">
               <div class="ai-status">
                 <span class="pulse-green"></span>
-                <span id="aiStatusText">Alex is ready to guide your learning</span>
+                <span id="aiStatusText">Blipp is ready to guide your learning</span>
               </div>
-              <div class="ai-header-badges">
-                <button type="button" class="ai-openai-badge clickable quota-exhausted" id="btnAiApiSettings" title="View OpenAI Connection &amp; Quota Status">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4947zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7866A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829l2.0201-1.1635a.0804.0804 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4021-.6863zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L8.907 9.2297V6.8974a.0662.0662 0 0 1 .0331-.0615l4.981-2.8764a4.4992 4.4992 0 0 1 6.5303 4.6732zM8.4806 13.799l-2.02-1.1636a.071.071 0 0 1-.038-.052V6.9958a4.504 4.504 0 0 1 7.3709-3.4539l-.142.0805L8.8732 6.3806a.7948.7948 0 0 0-.3926.6813v6.7369zm1.3705-2.4503L12 10.1384l2.1489 1.2351v2.4703L12 15.0789l-2.1489-1.2351v-2.4703z"/></svg>
-                  <span id="aiBadgeText">⚠️ API Quota Exhausted</span>
+              <div class="ai-header-controls">
+                <button class="btn-gemini-key" id="btnOpenGeminiModal" title="Gemini API Key Settings">
+                  <span class="key-icon">⚡</span>
+                  <span id="geminiBadgeText">Gemini API</span>
+                  <span class="key-dot" id="geminiKeyIndicator"></span>
                 </button>
                 <button class="btn-ghost-sm" id="btnClearAIChat">Clear Chat</button>
               </div>
             </div>
 
             <div class="ai-chat-history" id="aiChatHistory">
-              <!-- Initial Welcome Message -->
+              <!-- Initial Welcome Message from Blipp -->
               <div class="ai-msg-row ai-agent">
-                <div class="agent-avatar-sm">AI</div>
+                <div class="agent-avatar-sm blipp-avatar-sm">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+                  </svg>
+                </div>
                 <div class="ai-bubble">
-                  <p>Hello Harsh! I'm your personalized AI design mentor for <strong>Blendify</strong>. I can break down
-                    any learning material, critique your Figma auto-layouts, or test your comprehension with custom
-                    exercises. What would you like to explore today?</p>
+                  <p>Hello Harsh! I'm <strong>Blipp</strong>, your all-in-one AI learning companion on <strong>Blendify</strong>. I combine UI/UX design architecture, responsive Webflow/CSS code, and conceptual coaching into one seamless mentor powered by Google Gemini.<br/><br/>Whether you want to break down Figma auto-layout constraints, write clean responsive CSS, or test your retention with custom quizzes, what would you like to explore today?</p>
                 </div>
               </div>
             </div>
@@ -1055,14 +1054,14 @@
             <!-- Chat Input Area -->
             <div class="ai-chat-input-wrap">
               <textarea id="aiMessageInput"
-                placeholder="Ask your AI agent anything about the curriculum, layout rules, or design tokens... (Press Enter to send)"
-                rows="2" aria-label="Message your AI learning agent"></textarea>
+                placeholder="Ask Blipp anything about the curriculum, layout rules, CSS, or test your knowledge... (Press Enter to send)"
+                rows="2"></textarea>
               <button class="btn-primary" id="btnSendAIMessage">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
-                <span>Ask Agent</span>
+                <span>Ask Blipp</span>
               </button>
             </div>
           </div>
@@ -1086,8 +1085,8 @@
         <p class="modal-desc">Create a dedicated workplace for your study group, classroom cohort, or live pair-design
           session:</p>
         <div class="form-group">
-          <label for="newWorkplaceNameInput">Workplace Name</label>
-          <input type="text" id="newWorkplaceNameInput" placeholder="e.g. Cohort 4 — Webflow Interactions Study Room" aria-label="Workplace Name" />
+          <label>Workplace Name</label>
+          <input type="text" id="newWorkplaceNameInput" placeholder="e.g. Cohort 4 — Webflow Interactions Study Room" />
         </div>
         <div class="generated-tag-box">
           <span class="tag-gen-lbl">Generated Portal Tag:</span>
@@ -1156,7 +1155,7 @@
         <div class="form-field-group">
           <label class="form-label">Attach File (.pdf, .fig, .zip, .css, .js)</label>
           <div class="material-dropzone" id="materialDropzone">
-            <input type="file" id="materialFileInput" class="hidden-file-input" accept=".pdf,.fig,.zip,.css,.js,.html,.png,.jpg" aria-label="Attach File (.pdf, .fig, .zip, .css, .js)" />
+            <input type="file" id="materialFileInput" class="hidden-file-input" accept=".pdf,.fig,.zip,.css,.js,.html,.png,.jpg" />
             <div class="dropzone-inner" id="dropzoneContent">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -1190,7 +1189,7 @@
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" id="modalSearchInput" placeholder="Search learning materials, portal tags, AI topics..." aria-label="Global search query" />
+        <input type="text" id="modalSearchInput" placeholder="Search learning materials, portal tags, AI topics..." />
         <button class="modal-close-btn" id="modalSearchClose">✕</button>
       </div>
       <div class="modal-search-results" id="searchResults">
@@ -1240,8 +1239,8 @@
             </svg>
           </span>
           <div>
-            <strong>Personalized AI Learning Agent</strong>
-            <p>Chat with Alex, Kavita, or Socrates for tailored learning</p>
+            <strong>Blipp AI Learning Assistant</strong>
+            <p>Chat with Blipp for instant design, code, and concept guidance</p>
           </div>
         </div>
       </div>
@@ -1276,41 +1275,53 @@
     </div>
   </div>
 
-  <!-- OPENAI API KEY SETTINGS MODAL -->
-  <div class="modal-overlay" id="aiApiKeyModal">
-    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="aiKeyModalTitle" style="max-width: 520px;">
+  <!-- MODAL: GEMINI API CONFIGURATION FOR BLIPP -->
+  <div class="modal-overlay" id="geminiSettingsModal">
+    <div class="modal-box gemini-modal-box">
       <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div class="ai-openai-badge" style="padding: 6px 10px;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4947zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1683a.0757.0757 0 0 1-.071 0l-4.8303-2.7866A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829l2.0201-1.1635a.0804.0804 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.4021-.6863zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L8.907 9.2297V6.8974a.0662.0662 0 0 1 .0331-.0615l4.981-2.8764a4.4992 4.4992 0 0 1 6.5303 4.6732zM8.4806 13.799l-2.02-1.1636a.071.071 0 0 1-.038-.052V6.9958a4.504 4.504 0 0 1 7.3709-3.4539l-.142.0805L8.8732 6.3806a.7948.7948 0 0 0-.3926.6813v6.7369zm1.3705-2.4503L12 10.1384l2.1489 1.2351v2.4703L12 15.0789l-2.1489-1.2351v-2.4703z"/></svg>
+        <div class="gemini-modal-title-wrap">
+          <div class="gemini-modal-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C59A53" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
           </div>
           <div>
-            <h3 class="modal-title" id="aiKeyModalTitle" style="font-size: 1.1rem; margin: 0;">OpenAI API Key &amp; Connection</h3>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0 0;">Manage your AI model connection and live quota</p>
+            <span class="quiz-badge">Google AI Integration</span>
+            <h3 class="modal-title">Gemini API Settings</h3>
           </div>
         </div>
-        <button type="button" class="modal-close-btn" id="modalCloseAiKey" aria-label="Close API Key modal">✕</button>
+        <button class="modal-close-btn" id="modalCloseGemini">✕</button>
       </div>
-
-      <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 14px;">
-        <div id="aiKeyStatusNotice" style="background: var(--bg-subtle); border: 1px solid var(--border-light); padding: 12px; border-radius: var(--radius-sm); font-size: 0.82rem; line-height: 1.45;">
-          Checking connection status...
+      <div class="modal-body-content">
+        <p class="modal-desc">
+          Connect your Google Gemini API key to unlock real-time, live generative AI responses from Blipp. Your key is stored securely in your browser's local storage.
+        </p>
+        <div class="form-group">
+          <div class="label-with-action">
+            <label for="geminiApiKeyInput">Gemini API Key</label>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="link-helper">Get a Free Key ↗</a>
+          </div>
+          <div class="key-input-wrapper">
+            <input type="password" id="geminiApiKeyInput" class="form-text-input" placeholder="AIzaSy..." autocomplete="off" />
+            <button type="button" class="btn-toggle-key" id="btnToggleKeyVisibility" title="Toggle visibility">👁️</button>
+          </div>
+          <span class="input-hint">You can also provide <code>VITE_GEMINI_API_KEY</code> in a local <code>.env</code> file.</span>
         </div>
-
-        <div>
-          <label for="inputOpenAiKey" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;">
-            OpenAI API Key:
-          </label>
-          <input type="text" id="inputOpenAiKey" class="form-input" placeholder="sk-proj-..." style="width: 100%; font-family: monospace; font-size: 0.82rem; padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--bg-surface); color: var(--text-main);" />
-          <p style="font-size: 0.76rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
-            When this key has available credits, the AI agents use <strong>gpt-4o-mini</strong> with strict architectural persona rules. If credits are exhausted (HTTP 429), our intelligent non-repeating local engine automatically handles queries.
-          </p>
+        <div class="form-group">
+          <label for="geminiModelSelect">Gemini Model</label>
+          <select id="geminiModelSelect" class="form-select-input">
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended - Fast &amp; Reliable)</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Next-Gen Speed)</option>
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash (Latest Experimental)</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning)</option>
+          </select>
         </div>
+        <div class="gemini-test-status" id="geminiTestStatus" style="display: none;"></div>
       </div>
-
-      <div class="modal-footer-actions" style="padding: 16px 24px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 10px;">
-        <button type="button" class="btn-secondary" id="btnTestOpenAiKey">Test Key</button>
-        <button type="button" class="btn-primary" id="btnSaveOpenAiKey">Save &amp; Apply</button>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="btnTestGeminiKey">Test Connection</button>
+        <button type="button" class="btn-ghost-danger" id="btnClearGeminiKey">Remove Key</button>
+        <button type="button" class="btn-primary" id="btnSaveGeminiKey">Save Settings</button>
       </div>
     </div>
   </div>

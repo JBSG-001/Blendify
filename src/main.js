@@ -3,22 +3,31 @@
  * Streamlined around 3 Core Student Pillars:
  * 1. Access Educational Learning Materials
  * 2. Participate in Classroom Workplaces via Links & Generated Tags
- * 3. Personalized AI Learning Agents
+ * 3. Blipp — Unified AI Learning Companion (Powered by Google Gemini)
  */
+
+import {
+  getGeminiApiKey,
+  saveGeminiApiKey,
+  hasGeminiApiKey,
+  getGeminiModel,
+  saveGeminiModel,
+  callGeminiAPI,
+  testGeminiConnection,
+  formatMarkdown,
+  DEFAULT_MODEL
+} from './gemini.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // =========================================================================
   // STATE MANAGEMENT (PERSISTENT ACROSS SESSIONS)
   // =========================================================================
   const DEFAULT_CHAT_HISTORY = {
-    alex: [
-      { sender: 'agent', text: "Hello Harsh! I'm Alex, your personalized AI design system mentor. I specialize in visual hierarchy, auto-layout constraints, and token architecture. What design challenge are we tackling today?" }
-    ],
-    kavita: [
-      { sender: 'agent', text: "Hi Harsh! I'm Kavita, your Webflow & CSS code specialist. Whether you need help converting Figma frames to CSS Grid or debugging 100vw horizontal overflow, let's solve it together." }
-    ],
-    socrates: [
-      { sender: 'agent', text: "Greetings Harsh. I am Socrates, your conceptual thinking coach. Tell me: when you shrink a screen from desktop to mobile, why does layout priority change?" }
+    blipp: [
+      {
+        sender: 'agent',
+        text: "Hello Harsh! I'm **Blipp**, your all-in-one AI learning companion on **Blendify**. I combine UI/UX design architecture, responsive Webflow/CSS code, and conceptual coaching into one seamless mentor powered by Google Gemini.\n\nWhether you want to break down Figma auto-layout constraints, write clean responsive CSS, or test your retention with custom quizzes, what would you like to explore today?"
+      }
     ]
   };
 
@@ -39,7 +48,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function getStoredChatHistory() {
     try {
       const raw = localStorage.getItem('blendify_ai_chat_history');
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.blipp && Array.isArray(parsed.blipp)) {
+          return parsed;
+        }
+        // If user had legacy personas (alex, kavita, socrates), migrate cleanly
+        if (parsed && (parsed.alex || parsed.kavita || parsed.socrates)) {
+          return DEFAULT_CHAT_HISTORY;
+        }
+      }
     } catch(e) {}
     return DEFAULT_CHAT_HISTORY;
   }
@@ -65,7 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
     completedMaterials: initialProg.completedMaterials || 9,
     totalMaterials: 20,
     isMaterialCompleted: !!initialProg.isMaterialCompleted,
-    activePersona: 'alex',
+    activeFocus: 'all',
+    activePersona: 'blipp',
     chatHistory: initialChat
   };
 
@@ -1471,135 +1490,147 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // =========================================================================
-  // PILLAR 3: PERSONALIZED AI LEARNING AGENT
+  // PILLAR 3: BLIPP — UNIFIED AI LEARNING COMPANION (GEMINI POWERED)
   // =========================================================================
-  const personaChips = document.querySelectorAll('.persona-chip');
-  const personaAvatar = document.getElementById('personaAvatar');
-  const personaName = document.getElementById('personaName');
-  const personaRole = document.getElementById('personaRole');
-  const personaBio = document.getElementById('personaBio');
   const aiStatusText = document.getElementById('aiStatusText');
   const aiChatHistory = document.getElementById('aiChatHistory');
   const aiMessageInput = document.getElementById('aiMessageInput');
   const btnSendAIMessage = document.getElementById('btnSendAIMessage');
   const btnClearAIChat = document.getElementById('btnClearAIChat');
 
-  const personas = {
-    alex: {
-      name: 'Alex',
-      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>`,
-      role: 'Principal Design System Architect',
-      bio: 'Specialized in visual hierarchy, Figma auto-layout constraints, typography scales, and translating UI tokens into practical web structures.',
-      status: 'Alex is ready to guide your design learning'
-    },
-    kavita: {
-      name: 'Kavita',
-      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>`,
-      role: 'Webflow & Frontend Specialist',
-      bio: 'Focuses on visual CSS architecture, fluid layout models, Client-First conventions, and zero-code responsive development.',
-      status: 'Kavita is ready to troubleshoot your Webflow & CSS questions'
-    },
-    socrates: {
-      name: 'Socrates',
-      avatar: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
-      role: 'Adaptive Concept & Retention Coach',
-      bio: 'Uses the Socratic method and simple real-world analogies to deepen your comprehension and ensure long-term mastery of web design fundamentals.',
-      status: 'Socrates is ready to test and deepen your understanding'
+  // Gemini Settings Controls
+  const btnOpenGeminiModal = document.getElementById('btnOpenGeminiModal');
+  const geminiBadgeText = document.getElementById('geminiBadgeText');
+  const geminiKeyIndicator = document.getElementById('geminiKeyIndicator');
+  const geminiModelLabel = document.getElementById('geminiModelLabel');
+  const geminiModelTag = document.getElementById('geminiModelTag');
+  const geminiSettingsModal = document.getElementById('geminiSettingsModal');
+  const modalCloseGemini = document.getElementById('modalCloseGemini');
+  const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+  const geminiModelSelect = document.getElementById('geminiModelSelect');
+  const btnToggleKeyVisibility = document.getElementById('btnToggleKeyVisibility');
+  const btnTestGeminiKey = document.getElementById('btnTestGeminiKey');
+  const btnClearGeminiKey = document.getElementById('btnClearGeminiKey');
+  const btnSaveGeminiKey = document.getElementById('btnSaveGeminiKey');
+  const geminiTestStatus = document.getElementById('geminiTestStatus');
+
+  const BLIPP_AVATAR_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>`;
+
+  function updateGeminiStatusUI() {
+    const hasKey = hasGeminiApiKey();
+    const model = getGeminiModel();
+
+    if (geminiBadgeText) {
+      geminiBadgeText.textContent = hasKey ? 'Gemini Active' : 'Gemini API';
     }
-  };
-
-  function switchPersona(personaKey) {
-    state.activePersona = personaKey;
-    const p = personas[personaKey];
-
-    personaChips.forEach(chip => {
-      chip.classList.toggle('active', chip.dataset.persona === personaKey);
-    });
-
-    if (personaAvatar) personaAvatar.innerHTML = p.avatar;
-    if (personaName) personaName.textContent = p.name;
-    if (personaRole) personaRole.textContent = p.role;
-    if (personaBio) personaBio.textContent = p.bio;
-    if (aiStatusText) aiStatusText.textContent = p.status;
-
-    // Render persona's chat history
-    renderChatHistory();
-    showToast(`Switched AI learning agent to ${p.name}!`);
+    if (geminiKeyIndicator) {
+      geminiKeyIndicator.className = hasKey ? 'key-dot active' : 'key-dot demo';
+    }
+    if (geminiModelLabel) {
+      geminiModelLabel.textContent = hasKey ? model : 'Gemini (Add Key)';
+    }
+    if (geminiModelTag) {
+      geminiModelTag.classList.toggle('connected', hasKey);
+    }
   }
-
-  personaChips.forEach(chip => {
-    chip.addEventListener('click', () => switchPersona(chip.dataset.persona));
-  });
 
   function renderChatHistory() {
     if (!aiChatHistory) return;
     aiChatHistory.innerHTML = '';
-    const messages = state.chatHistory[state.activePersona] || [];
+    const messages = state.chatHistory.blipp || [];
 
     messages.forEach(msg => {
       const row = document.createElement('div');
       row.className = `ai-msg-row ${msg.sender === 'user' ? 'user' : 'ai-agent'}`;
-      row.innerHTML = `
-        ${msg.sender === 'agent' ? `<div class="agent-avatar-sm">${personas[state.activePersona].avatar}</div>` : ''}
-        <div class="ai-bubble"><p>${msg.text}</p></div>
-      `;
+
+      if (msg.sender === 'agent') {
+        const renderedHtml = formatMarkdown(msg.text);
+        row.innerHTML = `
+          <div class="agent-avatar-sm blipp-avatar-sm">${BLIPP_AVATAR_SVG}</div>
+          <div class="ai-bubble">${renderedHtml}</div>
+        `;
+      } else {
+        // Safe escaping for user messages
+        const div = document.createElement('div');
+        div.textContent = msg.text;
+        row.innerHTML = `<div class="ai-bubble"><p>${div.innerHTML}</p></div>`;
+      }
       aiChatHistory.appendChild(row);
     });
 
     aiChatHistory.scrollTop = aiChatHistory.scrollHeight;
   }
 
-  function generateAIResponse(userText, personaKey) {
-    const lower = userText.toLowerCase();
-
-    if (personaKey === 'alex') {
-      if (lower.includes('hug') || lower.includes('fill') || lower.includes('auto-layout')) {
-        return "In Figma Auto-Layout, think of 'Hug' and 'Fill' like this: **Hug contents** tells a frame to shrink-wrap tightly around its children (great for buttons and tags). **Fill container** tells an element to stretch to 100% of its parent's width (essential for responsive body text and fluid cards). When transitioning to Webflow, 'Fill' behaves like `width: 100%` inside a flex container!";
-      }
-      if (lower.includes('breakpoint') || lower.includes('mobile') || lower.includes('tablet')) {
-        return "When adapting from 1440px to 768px and 375px: 1) Switch multi-column cards (`flex-direction: row`) into single columns (`flex-direction: column`). 2) Tighten side padding from 40px down to 16px. 3) Reduce primary header font sizes by ~25% using fluid clamp or rem units.";
-      }
-      return `Great design question! In modern UI architecture, structuring your visual tokens first makes responsive scaling effortless. In our Module 2 learning material, focus on nesting auto-layout frames before applying individual element styles.`;
-    }
-
-    if (personaKey === 'kavita') {
-      if (lower.includes('rem') || lower.includes('px') || lower.includes('token')) {
-        return "Always prefer `rem` over `px` in Webflow! `1rem` equals the root font size (usually 16px). When users adjust their browser accessibility settings, rem units scale proportionally, whereas hardcoded pixels break readability and accessibility standards.";
-      }
-      if (lower.includes('grid') || lower.includes('flexbox')) {
-        return "Use **CSS Flexbox** for 1-dimensional layouts (navbars, button rows, tag lists). Use **CSS Grid** for 2-dimensional layouts (product grids, dashboard cards, image galleries). In Webflow, Grid offers native gap controls without needing negative margins!";
-      }
-      return `From a Webflow development perspective: keep your class names clean using Client-First naming conventions (e.g. \`card_component\`, \`section_hero\`). This makes sharing projects with teammates in your classroom portal much cleaner!`;
-    }
-
-    if (personaKey === 'socrates') {
-      return `Consider this: If a website is designed only for the desktop user, whose perspective are you excluding? When we examine responsive breakpoints, are we merely resizing boxes, or are we adapting the conversation to someone holding a phone on a crowded train? What information does that mobile user need to see first?`;
-    }
-
-    return "I'm here to support your learning! Ask me about any topic in the Blendify curriculum.";
-  }
-
-  function sendAIMessage(overrideText = null) {
-    const text = overrideText || aiMessageInput.value.trim();
+  async function sendAIMessage(overrideText = null) {
+    const text = overrideText || (aiMessageInput ? aiMessageInput.value.trim() : '');
     if (!text) return;
 
-    // Add user message
-    state.chatHistory[state.activePersona].push({ sender: 'user', text });
+    if (!state.chatHistory.blipp) {
+      state.chatHistory.blipp = [];
+    }
+
+    // Append user message
+    state.chatHistory.blipp.push({ sender: 'user', text });
     if (!overrideText && aiMessageInput) aiMessageInput.value = '';
     renderChatHistory();
     saveChatHistory(state.chatHistory);
 
-    // Show simulated typing status
-    const currentP = personas[state.activePersona];
-    if (aiStatusText) aiStatusText.textContent = `${currentP.name} is thinking...`;
+    // Disable input while processing
+    if (aiMessageInput) aiMessageInput.disabled = true;
+    if (btnSendAIMessage) btnSendAIMessage.disabled = true;
 
-    setTimeout(() => {
-      const reply = generateAIResponse(text, state.activePersona);
-      state.chatHistory[state.activePersona].push({ sender: 'agent', text: reply });
+    // Show animated typing indicator in chat history
+    const typingRow = document.createElement('div');
+    typingRow.className = 'ai-msg-row ai-agent blipp-typing-row';
+    typingRow.id = 'blippTypingIndicator';
+    typingRow.innerHTML = `
+      <div class="agent-avatar-sm blipp-avatar-sm">${BLIPP_AVATAR_SVG}</div>
+      <div class="ai-bubble typing-bubble">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-label">Blipp is thinking with Gemini...</span>
+      </div>
+    `;
+    aiChatHistory.appendChild(typingRow);
+    aiChatHistory.scrollTop = aiChatHistory.scrollHeight;
+
+    if (aiStatusText) aiStatusText.textContent = 'Blipp is generating response...';
+
+    try {
+      const response = await callGeminiAPI({
+        prompt: text,
+        history: state.chatHistory.blipp,
+        focusArea: state.activeFocus
+      });
+
+      // Remove typing indicator
+      const existingTyping = document.getElementById('blippTypingIndicator');
+      if (existingTyping) existingTyping.remove();
+
+      state.chatHistory.blipp.push({ sender: 'agent', text: response.text });
       renderChatHistory();
       saveChatHistory(state.chatHistory);
-      if (aiStatusText) aiStatusText.textContent = currentP.status;
-    }, 600);
+
+      if (aiStatusText) aiStatusText.textContent = 'Blipp is ready to guide your learning';
+    } catch (err) {
+      const existingTyping = document.getElementById('blippTypingIndicator');
+      if (existingTyping) existingTyping.remove();
+
+      state.chatHistory.blipp.push({
+        sender: 'agent',
+        text: `I encountered an unexpected issue while processing your message. Please try again! (${err.message || 'Unknown error'})`
+      });
+      renderChatHistory();
+      saveChatHistory(state.chatHistory);
+      if (aiStatusText) aiStatusText.textContent = 'Blipp is ready to guide your learning';
+    } finally {
+      if (aiMessageInput) {
+        aiMessageInput.disabled = false;
+        aiMessageInput.focus();
+      }
+      if (btnSendAIMessage) btnSendAIMessage.disabled = false;
+    }
   }
 
   btnSendAIMessage?.addEventListener('click', () => sendAIMessage());
@@ -1611,12 +1642,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnClearAIChat?.addEventListener('click', () => {
-    state.chatHistory[state.activePersona] = [
-      { sender: 'agent', text: `Chat cleared. How can I help you with your learning goals today?` }
+    state.chatHistory.blipp = [
+      { sender: 'agent', text: "Chat history cleared. What topic or challenge shall we explore next, Harsh?" }
     ];
     renderChatHistory();
     saveChatHistory(state.chatHistory);
-    showToast('Conversation cleared.');
+    showToast('Blipp conversation cleared.');
   });
 
   // Prompt chips click
@@ -1626,6 +1657,96 @@ document.addEventListener('DOMContentLoaded', () => {
       sendAIMessage(prompt);
     });
   });
+
+  // =========================================================================
+  // GEMINI SETTINGS MODAL HANDLERS
+  // =========================================================================
+  function openGeminiModal() {
+    if (!geminiSettingsModal) return;
+    const currentKey = getGeminiApiKey();
+    if (geminiApiKeyInput) geminiApiKeyInput.value = currentKey;
+    if (geminiModelSelect) geminiModelSelect.value = getGeminiModel();
+    if (geminiTestStatus) {
+      geminiTestStatus.style.display = 'none';
+      geminiTestStatus.innerHTML = '';
+    }
+    geminiSettingsModal.classList.add('open');
+  }
+
+  function closeGeminiModal() {
+    geminiSettingsModal?.classList.remove('open');
+  }
+
+  btnOpenGeminiModal?.addEventListener('click', openGeminiModal);
+  modalCloseGemini?.addEventListener('click', closeGeminiModal);
+  geminiSettingsModal?.addEventListener('click', (e) => {
+    if (e.target === geminiSettingsModal) closeGeminiModal();
+  });
+
+  btnToggleKeyVisibility?.addEventListener('click', () => {
+    if (!geminiApiKeyInput) return;
+    const isPassword = geminiApiKeyInput.type === 'password';
+    geminiApiKeyInput.type = isPassword ? 'text' : 'password';
+    btnToggleKeyVisibility.textContent = isPassword ? '🔒' : '👁️';
+  });
+
+  btnTestGeminiKey?.addEventListener('click', async () => {
+    const key = geminiApiKeyInput?.value.trim() || '';
+    const model = geminiModelSelect?.value || DEFAULT_MODEL;
+
+    if (!key) {
+      if (geminiTestStatus) {
+        geminiTestStatus.style.display = 'block';
+        geminiTestStatus.className = 'gemini-test-status error';
+        geminiTestStatus.textContent = 'Please enter an API key to test.';
+      }
+      return;
+    }
+
+    if (geminiTestStatus) {
+      geminiTestStatus.style.display = 'block';
+      geminiTestStatus.className = 'gemini-test-status testing';
+      geminiTestStatus.textContent = 'Testing connection with Google Gemini...';
+    }
+
+    const result = await testGeminiConnection(key, model);
+    if (geminiTestStatus) {
+      geminiTestStatus.className = `gemini-test-status ${result.success ? 'success' : 'error'}`;
+      geminiTestStatus.textContent = result.message;
+    }
+  });
+
+  btnSaveGeminiKey?.addEventListener('click', () => {
+    const key = geminiApiKeyInput?.value.trim() || '';
+    const model = geminiModelSelect?.value || DEFAULT_MODEL;
+
+    saveGeminiApiKey(key);
+    saveGeminiModel(model);
+    updateGeminiStatusUI();
+    closeGeminiModal();
+
+    if (key) {
+      showToast(`Gemini API key saved! Using model: ${model}`);
+    } else {
+      showToast('Gemini API key removed. Using Blipp offline engine.');
+    }
+  });
+
+  btnClearGeminiKey?.addEventListener('click', () => {
+    saveGeminiApiKey('');
+    if (geminiApiKeyInput) geminiApiKeyInput.value = '';
+    if (geminiTestStatus) {
+      geminiTestStatus.style.display = 'block';
+      geminiTestStatus.className = 'gemini-test-status success';
+      geminiTestStatus.textContent = 'API key removed. Blipp will use the offline knowledge base.';
+    }
+    updateGeminiStatusUI();
+    showToast('Gemini key cleared.');
+  });
+
+  // Initial render of chat & status
+  renderChatHistory();
+  updateGeminiStatusUI();
 
   // =========================================================================
   // GLOBAL SEARCH & SHORTCUTS (CMD + F)
