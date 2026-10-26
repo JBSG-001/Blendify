@@ -38,21 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.warn('[Blendify SQLite] SQLite initialization fallback to local storage:', err);
   }
 
-  // Update backend cloud-storage indicator (SQLite, Supabase, Firebase)
-  const authSyncStatusLabel = document.getElementById('authSyncStatusLabel');
-  if (authSyncStatusLabel) {
-    const sbStatus = getSupabaseStatus();
-    const fbStatus = getFirebaseStatus();
-    if (sbStatus.configured && fbStatus.configured) {
-      authSyncStatusLabel.textContent = `SQLite, Supabase (${sbStatus.projectRef}) & Firebase Synced`;
-    } else if (sbStatus.configured) {
-      authSyncStatusLabel.textContent = `SQLite & Supabase (${sbStatus.projectRef}) Synced`;
-    } else if (fbStatus.configured) {
-      authSyncStatusLabel.textContent = `SQLite & Firebase (${fbStatus.projectId}) Synced`;
-    } else {
-      authSyncStatusLabel.textContent = 'SQLite WebAssembly Active · Cloud-Ready (Supabase & Firebase)';
-    }
-  }
+
 
   // =========================================================================
   // STORAGE KEYS & PERSISTENT ROLE SYSTEM (SYNCHRONIZED WITH SQLITE)

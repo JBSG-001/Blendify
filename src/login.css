@@ -495,34 +495,7 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* Dual-Sync Status Indicator Badge */
-.auth-sync-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 12px;
-  background: #F0FDF4;
-  border: 1px solid #BBF7D0;
-  border-radius: var(--radius-pill);
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #166534;
-  margin-bottom: 18px;
-}
 
-.auth-sync-status-pill .sync-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #22C55E;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
-  animation: syncPulse 2s infinite ease-in-out;
-}
-
-@keyframes syncPulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.8; }
-}
 
 /* Sign Up Role Choice Selector */
 .signup-role-grid {
