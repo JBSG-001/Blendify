@@ -238,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     metrics: safeJSONParse(STORAGE_KEYS.METRICS, DEFAULT_METRICS),
     quizzes: safeJSONParse(STORAGE_KEYS.QUIZZES_PUBLISHED, []),
     selectedUploadFile: null,
+    attachedQuizFile: null,
     students: [
       { name: 'Aria Montgomery', id: '#STU-9021', initials: 'AM', colorClass: '' },
       { name: 'Rahim Chowdhury', id: '#STU-4812', initials: 'RC', colorClass: 'rc-avatar' },
@@ -867,6 +868,7 @@ document.addEventListener('DOMContentLoaded', () => {
     triggerLiveAutoSave();
   });
 
+
   // =========================================================================
   // MODULE 3: IN-TIME ACTIVITY TRACKER (WHO, WHEN, EXACT TIME)
   // =========================================================================
@@ -1236,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
     recordActivityEvent({
       studentName: 'Harsh Vardhan (Instructor)',
       studentId: '#FACULTY-01',
-      materialName: `Published Quiz: ${title}`,
+      materialName: state.attachedQuizFile ? `Published Quiz: ${title} [File: ${state.attachedQuizFile.name}]` : `Published Quiz: ${title}`,
       action: 'Quiz Published',
       actionClass: 'open',
       statusPill: 'Active Now'
@@ -1365,14 +1367,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   } catch (e) {}
 
-  function handleSignOutOrSwitch() {
+  function handleTeacherSignOutOrSwitch() {
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.ROLE);
     window.location.href = 'login.html';
   }
+  const handleSignOutOrSwitch = handleTeacherSignOutOrSwitch;
 
-  document.getElementById('btnSignOutAccount')?.addEventListener('click', handleSignOutOrSwitch);
-  document.getElementById('btnSwitchAccountDropdown')?.addEventListener('click', handleSignOutOrSwitch);
+  document.getElementById('btnSignOutAccount')?.addEventListener('click', handleTeacherSignOutOrSwitch);
+  document.getElementById('btnSwitchAccountDropdown')?.addEventListener('click', handleTeacherSignOutOrSwitch);
 
   // =========================================================================
   // BOOTSTRAP: RESTORE ALL PROCESS DATA ON PAGE LOAD

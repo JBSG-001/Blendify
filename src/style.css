@@ -2448,6 +2448,24 @@ ul {
   color: #10b981;
 }
 
+.ai-openai-badge.quota-exhausted {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #d97706;
+}
+.ai-openai-badge.quota-exhausted svg {
+  color: #f59e0b;
+}
+
+.ai-openai-badge.local-mode {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #6366f1;
+}
+.ai-openai-badge.local-mode svg {
+  color: #6366f1;
+}
+
 /* AI Chat Card */
 .ai-chat-card {
   background-color: var(--bg-surface);

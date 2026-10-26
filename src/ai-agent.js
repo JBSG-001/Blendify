@@ -499,7 +499,17 @@ export function getLocalAIResponse(userText, personaKey) {
   }
 
   // -------------------------------------------------------------------------
-  // 13. Dynamic Contextual Fallback (Non-repeating, tailored to user query)
+  // 13. General Developer & Version Control Inquiries (GitHub, Git, Repositories)
+  // -------------------------------------------------------------------------
+  if (lower.includes('github') || lower.includes('git ') || lower === 'git' || lower.includes('version control') || lower.includes('repository') || lower.includes('repo')) {
+    return {
+      text: `### What is GitHub?\n\n**GitHub** is a cloud-based hosting platform for software development and version control using **Git**:\n\n1. **Version Control (Git)**: Tracks every commit, branch, and change across the project so you can experiment freely and roll back bugs safely.\n2. **Collaboration**: Enables teams to collaborate via Pull Requests (PRs), code reviews, and issue tracking.\n3. **Continuous Deployment (CI/CD)**: With GitHub Actions and GitHub Pages, projects (like Blendify LMS) can build and deploy automatically on every push.\n\nIn modern web workflows, design tokens, responsive CSS classes, and UI components are versioned in Git so designers and engineers remain aligned!`,
+      followups: ['💻 How do design tokens connect to Git?', '⚡ CSS Grid vs Flexbox', '🎯 Quiz me on web fundamentals']
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // 14. Dynamic Contextual Fallback (Non-repeating, tailored to user query)
   // -------------------------------------------------------------------------
   const userWords = text.replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w.length > 2);
   const subjectHint = userWords.length > 0 ? userWords.slice(0, 3).join(' ') : 'your inquiry';
@@ -540,7 +550,7 @@ export function getLocalAIResponse(userText, personaKey) {
 }
 
 /**
- * Master AI Response Dispatcher (OpenAI API first, graceful local fallback)
+ * Master AI Response Dispatcher (OpenAI API first, graceful local fallback with explicit notice)
  */
 export async function getAIResponse(userText, personaKey) {
   try {
@@ -549,24 +559,41 @@ export async function getAIResponse(userText, personaKey) {
     return liveResponse;
   } catch (error) {
     const isQuota = error.code === 'credit_balance_exhausted' || error.status === 429;
-    const badgeLabel = isQuota ? '⚠️ API Quota Exhausted (0 credits)' : 'Local Intelligence (Active)';
-    console.warn(`[Blendify AI] Notice: ${error.message}. Serving dynamic non-repeating persona engine.`);
-    updateApiBadgeStatus(false, badgeLabel);
+    const badgeLabel = isQuota ? '⚠️ API Quota Exhausted' : 'Local Intelligence (Active)';
+    console.warn(`[Blendify AI] Notice: ${error.message}. Serving local fallback.`);
+    updateApiBadgeStatus(false, badgeLabel, isQuota ? 'quota' : 'local');
 
     const fallbackResponse = getLocalAIResponse(userText, personaKey);
-    return fallbackResponse;
+
+    const noticeText = isQuota
+      ? `> ⚠️ **OpenAI Live Notice (HTTP 429 — 0 Credits Remaining):** The configured OpenAI API key has exhausted its credit quota. Add balance at [platform.openai.com](https://platform.openai.com/settings/organization/billing) or click **API Settings** (badge above) to enter your own funded key.\n\n*Answering via Local Assistant (${AI_PERSONAS[personaKey]?.name || 'Alex'}):*\n\n`
+      : `> ⚠️ **OpenAI Live Notice (${error.message}):** Unable to reach live LLM. Answering via Local Assistant (${AI_PERSONAS[personaKey]?.name || 'Alex'}). Click **API Settings** to configure your OpenAI key.\n\n`;
+
+    return {
+      text: noticeText + fallbackResponse.text,
+      source: 'local',
+      quiz: fallbackResponse.quiz,
+      followups: fallbackResponse.followups
+    };
   }
 }
 
 /**
  * Helper to update header API badge
  */
-function updateApiBadgeStatus(isLive, labelText) {
+function updateApiBadgeStatus(isLive, labelText, statusType = 'quota') {
   const badge = document.getElementById('btnAiApiSettings');
   const badgeText = document.getElementById('aiBadgeText');
   if (badgeText) badgeText.textContent = labelText;
   if (badge) {
-    badge.classList.toggle('quota-exhausted', !isLive);
+    badge.classList.remove('quota-exhausted', 'local-mode');
+    if (!isLive) {
+      if (statusType === 'quota') {
+        badge.classList.add('quota-exhausted');
+      } else {
+        badge.classList.add('local-mode');
+      }
+    }
   }
 }
 
@@ -977,4 +1004,41 @@ export function initAILearningAgent(state, showToast) {
       followups: initialP.followups
     });
   }
+
+  // Check initial API Key status asynchronously on startup
+  async function checkInitialApiKeyStatus() {
+    const key = getOpenAIApiKey();
+    if (!key) {
+      updateApiBadgeStatus(false, 'Local Intelligence (Active)', 'local');
+      return;
+    }
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Ping' }],
+          max_tokens: 5
+        })
+      });
+      if (res.ok) {
+        updateApiBadgeStatus(true, 'OpenAI Live (gpt-4o-mini)');
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        if (res.status === 429 || errJson?.error?.code === 'credit_balance_exhausted') {
+          updateApiBadgeStatus(false, '⚠️ API Quota Exhausted', 'quota');
+        } else {
+          updateApiBadgeStatus(false, 'Local Intelligence (Active)', 'local');
+        }
+      }
+    } catch (e) {
+      updateApiBadgeStatus(false, 'Local Intelligence (Active)', 'local');
+    }
+  }
+
+  checkInitialApiKeyStatus();
 }
